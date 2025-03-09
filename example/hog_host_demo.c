@@ -224,6 +224,7 @@ static void hid_handle_input_report(uint8_t service_index, const uint8_t * repor
             continue;
         }
         printf("%c", key);
+        fflush(stdout);
     }
     memcpy(last_keys, new_keys, NUM_KEYS);
 }
@@ -360,6 +361,11 @@ static void handle_gatt_client_event(uint8_t packet_type, uint16_t channel, uint
                     handle_outgoing_connection_error();
                     break;
             }
+            break;
+
+        case GATTSERVICE_SUBEVENT_HID_SERVICE_DISCONNECTED:
+            printf("HID service client disconnected\n");
+            hog_start_connect();
             break;
 
         case GATTSERVICE_SUBEVENT_HID_REPORT:
