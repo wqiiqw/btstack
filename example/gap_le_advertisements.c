@@ -134,98 +134,129 @@ static const char * flags[] = {
  */
 
 /* LISTING_START(GAPLEAdvDataParsing): Parsing advertising data */
+#define TARGET_LOCAL_NAME "T3 Counter"
+#define MAX_LOCAL_NAME_SIZE 32
+
+// ...existing code...
+
 static void dump_advertisement_data(const uint8_t * adv_data, uint8_t adv_size){
     ad_context_t context;
     bd_addr_t address;
     uint8_t uuid_128[16];
+    int print_all = 1;
+
+#ifdef TARGET_LOCAL_NAME
+    print_all = 0;
+#endif
+
     for (ad_iterator_init(&context, adv_size, (uint8_t *)adv_data) ; ad_iterator_has_more(&context) ; ad_iterator_next(&context)){
         uint8_t data_type    = ad_iterator_get_data_type(&context);
         uint8_t size         = ad_iterator_get_data_len(&context);
         const uint8_t * data = ad_iterator_get_data(&context);
+
+        if (data_type == BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME){
+            if (size <= MAX_LOCAL_NAME_SIZE) {
+                char local_name[MAX_LOCAL_NAME_SIZE + 1];
+                memcpy(local_name, data, size);
+                local_name[size] = '\0';
+#ifdef TARGET_LOCAL_NAME
+                if (strcmp(local_name, TARGET_LOCAL_NAME) == 0){
+                    printf("    Complete Local Name: %s\n", local_name);
+                    print_all = 1;
+                }
+#else
+                printf("    Complete Local Name: %s\n", local_name);
+#endif
+            }
+        }
+
+        if (print_all) {
+            print_all = 0;
+            if (data_type > 0 && data_type < 0x1B){
+                printf("    %s: ", ad_types[data_type]);
+            } 
+            int i;
+            // Assigned Numbers GAP
         
-        if (data_type > 0 && data_type < 0x1B){
-            printf("    %s: ", ad_types[data_type]);
-        } 
-        int i;
-        // Assigned Numbers GAP
-    
-        switch (data_type){
-            case BLUETOOTH_DATA_TYPE_FLAGS:
-                // show only first octet, ignore rest
-                for (i=0; i<8;i++){
-                    if (data[0] & (1<<i)){
-                        printf("%s; ", flags[i]);
+            switch (data_type){
+                case BLUETOOTH_DATA_TYPE_FLAGS:
+                    // show only first octet, ignore rest
+                    for (i=0; i<8;i++){
+                        if (data[0] & (1<<i)){
+                            printf("%s; ", flags[i]);
+                        }
                     }
-                }
-                break;
-            case BLUETOOTH_DATA_TYPE_INCOMPLETE_LIST_OF_16_BIT_SERVICE_CLASS_UUIDS:
-            case BLUETOOTH_DATA_TYPE_COMPLETE_LIST_OF_16_BIT_SERVICE_CLASS_UUIDS:
-            case BLUETOOTH_DATA_TYPE_LIST_OF_16_BIT_SERVICE_SOLICITATION_UUIDS:
-                for (i=0; i<size;i+=2){
-                    printf("%04X ", little_endian_read_16(data, i));
-                }
-                break;
-            case BLUETOOTH_DATA_TYPE_INCOMPLETE_LIST_OF_32_BIT_SERVICE_CLASS_UUIDS:
-            case BLUETOOTH_DATA_TYPE_COMPLETE_LIST_OF_32_BIT_SERVICE_CLASS_UUIDS:
-            case BLUETOOTH_DATA_TYPE_LIST_OF_32_BIT_SERVICE_SOLICITATION_UUIDS:
-                for (i=0; i<size;i+=4){
-                    printf("%04"PRIX32, little_endian_read_32(data, i));
-                }
-                break;
-            case BLUETOOTH_DATA_TYPE_INCOMPLETE_LIST_OF_128_BIT_SERVICE_CLASS_UUIDS:
-            case BLUETOOTH_DATA_TYPE_COMPLETE_LIST_OF_128_BIT_SERVICE_CLASS_UUIDS:
-            case BLUETOOTH_DATA_TYPE_LIST_OF_128_BIT_SERVICE_SOLICITATION_UUIDS:
-                reverse_128(data, uuid_128);
-                printf("%s", uuid128_to_str(uuid_128));
-                break;
-            case BLUETOOTH_DATA_TYPE_SHORTENED_LOCAL_NAME:
-            case BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME:
-                for (i=0; i<size;i++){
-                    printf("%c", (char)(data[i]));
-                }
-                break;
-            case BLUETOOTH_DATA_TYPE_TX_POWER_LEVEL:
-                printf("%d dBm", *(int8_t*)data);
-                break;
-            case BLUETOOTH_DATA_TYPE_SLAVE_CONNECTION_INTERVAL_RANGE:
-                printf("Connection Interval Min = %u ms, Max = %u ms", little_endian_read_16(data, 0) * 5/4, little_endian_read_16(data, 2) * 5/4);
-                break;
-            case BLUETOOTH_DATA_TYPE_SERVICE_DATA:
-                for (i=0; i<size;i+=2){
-                    printf("%02X ", data[i]);
-                }
-                break;
-            case BLUETOOTH_DATA_TYPE_PUBLIC_TARGET_ADDRESS:
-            case BLUETOOTH_DATA_TYPE_RANDOM_TARGET_ADDRESS:
-                reverse_bd_addr(data, address);
-                printf("%s", bd_addr_to_str(address));
-                break;
-            case BLUETOOTH_DATA_TYPE_APPEARANCE: 
-                // https://developer.bluetooth.org/gatt/characteristics/Pages/CharacteristicViewer.aspx?u=org.bluetooth.characteristic.gap.appearance.xml
-                printf("%02X", little_endian_read_16(data, 0) );
-                break;
-            case BLUETOOTH_DATA_TYPE_ADVERTISING_INTERVAL:
-                printf("%u ms", little_endian_read_16(data, 0) * 5/8 );
-                break;
-            case BLUETOOTH_DATA_TYPE_3D_INFORMATION_DATA:
-                for (i=0; i<size;i+=2){
-                    printf("%02X ", data[i]);
-                }
-                break;
-            case BLUETOOTH_DATA_TYPE_MANUFACTURER_SPECIFIC_DATA: // Manufacturer Specific Data 
-            case BLUETOOTH_DATA_TYPE_CLASS_OF_DEVICE:
-            case BLUETOOTH_DATA_TYPE_SIMPLE_PAIRING_HASH_C:
-            case BLUETOOTH_DATA_TYPE_SIMPLE_PAIRING_RANDOMIZER_R:
-            case BLUETOOTH_DATA_TYPE_DEVICE_ID: 
-            case BLUETOOTH_DATA_TYPE_SECURITY_MANAGER_OUT_OF_BAND_FLAGS:
-            default:
-                printf("    Advertising Data Type 0x%2x not handled yet", data_type);
-                break;
-        }        
-        printf("\n");
+                    break;
+                case BLUETOOTH_DATA_TYPE_INCOMPLETE_LIST_OF_16_BIT_SERVICE_CLASS_UUIDS:
+                case BLUETOOTH_DATA_TYPE_COMPLETE_LIST_OF_16_BIT_SERVICE_CLASS_UUIDS:
+                case BLUETOOTH_DATA_TYPE_LIST_OF_16_BIT_SERVICE_SOLICITATION_UUIDS:
+                    for (i=0; i<size;i+=2){
+                        printf("%04X ", little_endian_read_16(data, i));
+                    }
+                    break;
+                case BLUETOOTH_DATA_TYPE_INCOMPLETE_LIST_OF_32_BIT_SERVICE_CLASS_UUIDS:
+                case BLUETOOTH_DATA_TYPE_COMPLETE_LIST_OF_32_BIT_SERVICE_CLASS_UUIDS:
+                case BLUETOOTH_DATA_TYPE_LIST_OF_32_BIT_SERVICE_SOLICITATION_UUIDS:
+                    for (i=0; i<size;i+=4){
+                        printf("%04"PRIX32, little_endian_read_32(data, i));
+                    }
+                    break;
+                case BLUETOOTH_DATA_TYPE_INCOMPLETE_LIST_OF_128_BIT_SERVICE_CLASS_UUIDS:
+                case BLUETOOTH_DATA_TYPE_COMPLETE_LIST_OF_128_BIT_SERVICE_CLASS_UUIDS:
+                case BLUETOOTH_DATA_TYPE_LIST_OF_128_BIT_SERVICE_SOLICITATION_UUIDS:
+                    reverse_128(data, uuid_128);
+                    printf("%s", uuid128_to_str(uuid_128));
+                    break;
+                case BLUETOOTH_DATA_TYPE_SHORTENED_LOCAL_NAME:
+                case BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME:
+                    for (i=0; i<size;i++){
+                        printf("%c", (char)(data[i]));
+                    }
+                    break;
+                case BLUETOOTH_DATA_TYPE_TX_POWER_LEVEL:
+                    printf("%d dBm", *(int8_t*)data);
+                    break;
+                case BLUETOOTH_DATA_TYPE_SLAVE_CONNECTION_INTERVAL_RANGE:
+                    printf("Connection Interval Min = %u ms, Max = %u ms", little_endian_read_16(data, 0) * 5/4, little_endian_read_16(data, 2) * 5/4);
+                    break;
+                case BLUETOOTH_DATA_TYPE_SERVICE_DATA:
+                    for (i=0; i<size;i+=2){
+                        printf("%02X ", data[i]);
+                    }
+                    break;
+                case BLUETOOTH_DATA_TYPE_PUBLIC_TARGET_ADDRESS:
+                case BLUETOOTH_DATA_TYPE_RANDOM_TARGET_ADDRESS:
+                    reverse_bd_addr(data, address);
+                    printf("%s", bd_addr_to_str(address));
+                    break;
+                case BLUETOOTH_DATA_TYPE_APPEARANCE: 
+                    // https://developer.bluetooth.org/gatt/characteristics/Pages/CharacteristicViewer.aspx?u=org.bluetooth.characteristic.gap.appearance.xml
+                    printf("%02X", little_endian_read_16(data, 0) );
+                    break;
+                case BLUETOOTH_DATA_TYPE_ADVERTISING_INTERVAL:
+                    printf("%u ms", little_endian_read_16(data, 0) * 5/8 );
+                    break;
+                case BLUETOOTH_DATA_TYPE_3D_INFORMATION_DATA:
+                    for (i=0; i<size;i+=2){
+                        printf("%02X ", data[i]);
+                    }
+                    break;
+                case BLUETOOTH_DATA_TYPE_MANUFACTURER_SPECIFIC_DATA: // Manufacturer Specific Data 
+                case BLUETOOTH_DATA_TYPE_CLASS_OF_DEVICE:
+                case BLUETOOTH_DATA_TYPE_SIMPLE_PAIRING_HASH_C:
+                case BLUETOOTH_DATA_TYPE_SIMPLE_PAIRING_RANDOMIZER_R:
+                case BLUETOOTH_DATA_TYPE_DEVICE_ID: 
+                case BLUETOOTH_DATA_TYPE_SECURITY_MANAGER_OUT_OF_BAND_FLAGS:
+                default:
+                    printf("    Advertising Data Type 0x%2x not handled yet", data_type);
+                    break;
+            }        
+            printf("\n");
+        }
     }
     printf("\n");
 }
+
 /* LISTING_END */
 
 /* @section HCI packet handler
