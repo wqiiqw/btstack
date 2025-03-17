@@ -73,7 +73,7 @@ int btstack_main(int argc, const char * argv[]);
 
 static hci_transport_config_uart_t config = {
         HCI_TRANSPORT_CONFIG_UART,
-        1000000,
+        1000000,  //115200
         0,  // main baudrate
         1,  // flow control
         NULL,
@@ -91,7 +91,7 @@ static btstack_tlv_windows_t   tlv_context;
 static bool shutdown_triggered;
 
 static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
-    const uint8_t *params
+    const uint8_t* params;
     if (packet_type != HCI_EVENT_PACKET) return;
     switch (hci_event_packet_get_type(packet)){
         case BTSTACK_EVENT_STATE:
@@ -166,7 +166,7 @@ int main(int argc, const char * argv[]){
     printf("Packet Log: %s\n", pklg_path);
 
     // pick serial port
-    config.device_name = "COM6";
+    config.device_name = "COM23";
 
     // accept path from command line
     if (argc >= 3 && strcmp(argv[1], "-u") == 0){
