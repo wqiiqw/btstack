@@ -166,7 +166,7 @@ int main(int argc, const char * argv[]){
     printf("Packet Log: %s\n", pklg_path);
 
     // pick serial port
-    config.device_name = "COM23";
+    config.device_name = "\\\\.\\COM42";
 
     // accept path from command line
     if (argc >= 3 && strcmp(argv[1], "-u") == 0){
