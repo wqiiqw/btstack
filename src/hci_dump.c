@@ -152,9 +152,9 @@ void hci_dump_setup_header_packetlogger(uint8_t * buffer, uint32_t tv_sec, uint3
         case HCI_EVENT_PACKET:
             packet_logger_type = 0x01;
             break;
-        case LOG_MESSAGE_PACKET:
-            packet_logger_type = 0xfc;
-            break;
+        // case LOG_MESSAGE_PACKET:
+        //     packet_logger_type = 0xfc;
+        //     break;
         default:
             return;
     }

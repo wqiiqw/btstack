@@ -73,9 +73,9 @@ int btstack_main(int argc, const char * argv[]);
 
 static hci_transport_config_uart_t config = {
         HCI_TRANSPORT_CONFIG_UART,
-        1000000,  //115200
+        500000,  //115200  500000
         0,  // main baudrate
-        1,  // flow control
+        0,  // flow control
         NULL,
 };
 
@@ -166,7 +166,7 @@ int main(int argc, const char * argv[]){
     printf("Packet Log: %s\n", pklg_path);
 
     // pick serial port
-    config.device_name = "\\\\.\\COM42";
+    config.device_name = "\\\\.\\COM44";
 
     // accept path from command line
     if (argc >= 3 && strcmp(argv[1], "-u") == 0){
