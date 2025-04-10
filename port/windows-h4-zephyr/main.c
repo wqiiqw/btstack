@@ -75,7 +75,7 @@ static hci_transport_config_uart_t config = {
         HCI_TRANSPORT_CONFIG_UART,
         500000,  //115200  500000
         0,  // main baudrate
-        0,  // flow control
+        1,  // flow control
         NULL,
 };
 
