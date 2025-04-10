@@ -152,34 +152,101 @@ void hal_led_toggle(void){
     printf("LED State %u\n", led_state);
 }
 
-int main(int argc, const char * argv[]){
+static void print_usage(const char* prog) {
+    printf("Usage: %s [-u COM_PORT] [-b BAUDRATE] [-h DUMP_FILE]\n", prog);
+    printf("  -u COM_PORT    : UART device name (e.g., \\\\.\\COM44)\n");
+    printf("  -b BAUDRATE    : UART baudrate (positive integer)\n");
+    printf("  -h DUMP_FILE   : Path to HCI dump .pklg file\n");
+    printf("\nIf no arguments are provided, default values are used:\n");
+    printf("  COM_PORT       : \\\\.\\COM44\n");
+    printf("  BAUDRATE       : 500000\n");
+    printf("  DUMP_FILE      : hci_dump.pklg\n");
+}
 
-    /// GET STARTED with BTstack ///
+int main(int argc, const char* argv[]) {
+
+    const char* default_com_port = "\\\\.\\COM44";
+    uint32_t default_baudrate = 500000;
+    const char* default_dump_path = "hci_dump.pklg";
+
+    const char* pklg_path;
+    int baud;
+    int i;
+
+    // Set defaults
+    config.device_name = default_com_port;
+    config.baudrate_main = default_baudrate;
+    pklg_path = default_dump_path;
+
+    // Argument parsing
+    i = 1;
+    while (i < argc) {
+        if (strcmp(argv[i], "-u") == 0) {
+            if (i + 1 < argc) {
+                config.device_name = argv[i + 1];
+                i += 2;
+            }
+            else {
+                fprintf(stderr, "Error: -u requires a COM port (e.g., -u \\\\.\\COM44)\n");
+                print_usage(argv[0]);
+                return 1;
+            }
+        }
+        else if (strcmp(argv[i], "-b") == 0) {
+            if (i + 1 < argc) {
+                baud = atoi(argv[i + 1]);
+                if (baud <= 0) {
+                    fprintf(stderr, "Error: Invalid baudrate '%s'. Must be a positive integer.\n", argv[i + 1]);
+                    print_usage(argv[0]);
+                    return 1;
+                }
+                config.baudrate_main = (uint32_t)baud;
+                i += 2;
+            }
+            else {
+                fprintf(stderr, "Error: -b requires a baudrate value (e.g., -b 500000)\n");
+                print_usage(argv[0]);
+                return 1;
+            }
+        }
+        else if (strcmp(argv[i], "-h") == 0) {
+            if (i + 1 < argc) {
+                pklg_path = argv[i + 1];
+                i += 2;
+            }
+            else {
+                fprintf(stderr, "Error: -h requires a file path (e.g., -h dump.pklg)\n");
+                print_usage(argv[0]);
+                return 1;
+            }
+        }
+        else {
+            fprintf(stderr, "Error: Unknown argument '%s'\n", argv[i]);
+            print_usage(argv[0]);
+            return 1;
+        }
+    }
+
+    // === BTstack Initialization ===
     btstack_memory_init();
     btstack_run_loop_init(btstack_run_loop_windows_get_instance());
 
-    // log into file using HCI_DUMP_PACKETLOGGER format
-    const char * pklg_path = "hci_dump.pklg";
+    // HCI dump log
     hci_dump_windows_fs_open(pklg_path, HCI_DUMP_PACKETLOGGER);
-    const hci_dump_t * hci_dump_impl = hci_dump_windows_fs_get_instance();
-    hci_dump_init(hci_dump_impl);
-    printf("Packet Log: %s\n", pklg_path);
-
-    // pick serial port
-    config.device_name = "\\\\.\\COM44";
-
-    // accept path from command line
-    if (argc >= 3 && strcmp(argv[1], "-u") == 0){
-        config.device_name = argv[2];
-        argc -= 2;
-        memmove((void *) &argv[1], &argv[3], (argc-1) * sizeof(char *));
+    {
+        const hci_dump_t* hci_dump_impl = hci_dump_windows_fs_get_instance();
+        hci_dump_init(hci_dump_impl);
     }
-    printf("H4 device: %s\n", config.device_name);
 
-    // init HCI
-    const btstack_uart_block_t * uart_driver = btstack_uart_block_windows_instance();
-    const hci_transport_t * transport = hci_transport_h4_instance(uart_driver);
-    hci_init(transport, (void*) &config);
+    printf("Packet Log: %s\n", pklg_path);
+    printf("H4 device : %s\n", config.device_name);
+    printf("Baudrate  : %u\n", config.baudrate_main);
+
+    {
+        const btstack_uart_block_t* uart_driver = btstack_uart_block_windows_instance();
+        const hci_transport_t* transport = hci_transport_h4_instance(uart_driver);
+        hci_init(transport, (void*)&config);
+    }
     hci_set_chipset(btstack_chipset_zephyr_instance());
 
 #ifdef HAVE_PORTAUDIO
@@ -187,22 +254,16 @@ int main(int argc, const char * argv[]){
     btstack_audio_source_set_instance(btstack_audio_portaudio_source_get_instance());
 #endif
 
-    // inform about BTstack state
     hci_event_callback_registration.callback = &packet_handler;
     hci_add_event_handler(&hci_event_callback_registration);
 
-    // setup stdin to handle CTRL-c
     btstack_stdin_windows_init();
     btstack_stdin_window_register_ctrl_c_callback(&trigger_shutdown);
 
-    // setup app
     btstack_main(argc, argv);
-
-    // sm required to setup static random Bluetooth address
     sm_init();
-
-    // go
     btstack_run_loop_execute();
 
     return 0;
 }
+
