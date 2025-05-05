@@ -95,7 +95,7 @@ static void local_version_information_handler(uint8_t * packet);
 
 static hci_transport_config_uart_t config = {
     HCI_TRANSPORT_CONFIG_UART,
-    115200,
+    1000000, //115200
     0,  // main baudrate
     1,  // flow control
     NULL,
@@ -221,7 +221,7 @@ int main(int argc, const char * argv[]){
     btstack_run_loop_init(btstack_run_loop_posix_get_instance());
 
     // pre-select serial device
-    config.device_name = "/dev/tty.usbmodemEA7EB9D612C31"; // BL654 with PTS Firmware
+    config.device_name = "/dev/ttyACM1"; // BL654 with PTS Firmware
 
     // accept path from command line
     bool second_device = false;
