@@ -37,6 +37,7 @@
 
 #define BTSTACK_FILE__ "le_audio_broadcast_source.c"
 
+#define COUNT_MODE
 /*
  * LE Audio Broadcast Source
  */
@@ -63,7 +64,7 @@
 #include "le_audio_demo_util_source.h"
 
 // Interoperability with Nordic LE Audio demo
-//#define NRF5340_BROADCAST_MODE
+#define NRF5340_BROADCAST_MODE
 
 // max config
 #define MAX_NUM_BIS 2
@@ -382,6 +383,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
             }
             break;
         case HCI_EVENT_BIS_CAN_SEND_NOW:
+            printf("HCI_EVENT_BIS_CAN_SEND_NOW\n");
             bis_index = hci_event_bis_can_send_now_get_bis_index(packet);
             le_audio_demo_util_source_send(bis_index, bis_con_handles[bis_index]);
             bis_index++;

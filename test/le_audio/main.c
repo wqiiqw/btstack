@@ -221,7 +221,7 @@ int main(int argc, const char * argv[]){
     btstack_run_loop_init(btstack_run_loop_posix_get_instance());
 
     // pre-select serial device
-    config.device_name = "/dev/tty.usbmodemEA7EB9D612C31"; // BL654 with PTS Firmware
+    config.device_name = "/dev/ttyACM1"; // BL654 with PTS Firmware
 
     // accept path from command line
     bool second_device = false;

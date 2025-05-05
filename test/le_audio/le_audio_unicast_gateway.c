@@ -418,7 +418,7 @@ int btstack_main(int argc, const char * argv[]){
     hci_register_iso_packet_handler(&iso_packet_handler);
 
     // setup audio processing
-    le_audio_demo_util_sink_init("le_audio_unicast_source.wav");
+    le_audio_demo_util_sink_init("file_example_WAV_1MG.wav");
     le_audio_demo_util_source_init();
 
     // turn on!

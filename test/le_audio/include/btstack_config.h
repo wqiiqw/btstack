@@ -5,6 +5,8 @@
 #ifndef BTSTACK_CONFIG_H
 #define BTSTACK_CONFIG_H
 
+//#define ENABLE_DEMO_MODE
+
 // Port related features
 #define HAVE_ASSERT
 #define HAVE_BTSTACK_STDIN
