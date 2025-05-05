@@ -270,7 +270,7 @@ static void setup_mod_player(void){
         btstack_assert(hxcmod_initialized != 0);
     }
     hxcmod_unload(&mod_context);
-    hxcmod_setcfg(&mod_context, sampling_frequency_hz, 16, 1, 1, 1);
+    hxcmod_setcfg(&mod_context, sampling_frequency_hz, 16, 1 ); //, 1, 1);
     hxcmod_load(&mod_context, (void *) &mod_data, mod_len);
 }
 

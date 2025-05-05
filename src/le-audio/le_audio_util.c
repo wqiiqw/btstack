@@ -582,6 +582,7 @@ le_audio_codec_sampling_frequency_index_t le_audio_get_sampling_frequency_index(
     }
 }
 
+#if 0
 void le_audio_util_metadata_using_mask_from_metadata_event(const uint8_t * packet, uint16_t packet_size, le_audio_metadata_t * metadata_out){
     UNUSED(packet_size);
     btstack_assert(metadata_out != NULL);
@@ -714,3 +715,4 @@ void le_audio_util_metadata_using_mask_from_enable_event(const uint8_t * packet,
     }
 }
 
+#endif
