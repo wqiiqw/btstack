@@ -83,13 +83,13 @@ add_library(btstack STATIC ${SOURCES})
 find_package(PkgConfig REQUIRED)
 
 # portaudio
-pkg_check_modules(PORTAUDIO portaudio-2.0)
-if(PORTAUDIO_FOUND)
-	include_directories(${PORTAUDIO_INCLUDE_DIRS})
-	target_link_directories(btstack PUBLIC ${PORTAUDIO_LIBRARY_DIRS})
-	target_link_libraries(btstack ${PORTAUDIO_LIBRARIES})
-	add_compile_definitions(HAVE_PORTAUDIO)
-endif()
+# pkg_check_modules(PORTAUDIO portaudio-2.0)
+# if(PORTAUDIO_FOUND)
+# 	include_directories(${PORTAUDIO_INCLUDE_DIRS})
+# 	target_link_directories(btstack PUBLIC ${PORTAUDIO_LIBRARY_DIRS})
+# 	target_link_libraries(btstack ${PORTAUDIO_LIBRARIES})
+# 	add_compile_definitions(HAVE_PORTAUDIO)
+# endif()
 
 # fdk-aac
 pkg_check_modules(FDK_AAC fdk-aac)
