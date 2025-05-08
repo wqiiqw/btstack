@@ -316,6 +316,7 @@ static void test_encoder(){
     // encode 10 seconds of music
     uint32_t audio_duration_in_seconds = 10;
     uint32_t total_samples = sampling_frequency_hz * audio_duration_in_seconds;
+    printf("Total samples: %u\n", total_samples);
     uint32_t generated_samples = 0;
     uint32_t player_ms = 0;
     uint32_t encoder_ms = 0;
@@ -354,14 +355,33 @@ static void test_encoder(){
         wav_writer_write_int16(number_samples_per_frame, pcm);
 #endif
 
-        // summary
-        player_ms  += block_generated_ms - block_start_ms;
-        encoder_ms += block_encoded_ms   - block_generated_ms;
-        decoder_ms += block_decoded_ms   - block_encoded_ms;
+    // summary
+    uint32_t diff_player = block_generated_ms - block_start_ms;
+    uint32_t diff_encoder = block_encoded_ms - block_generated_ms;
+    uint32_t diff_decoder = block_decoded_ms - block_encoded_ms;
+
+#if 0
+    // Check for coarse timer resolution
+    if (diff_player == 0) {
+        printf("Warning: Timer resolution too coarse for player timing.\n");
     }
-    printf("Player:  time %5u ms, duty cycle %3u %%\n", player_ms,  player_ms  / audio_duration_in_seconds / 10);
-    printf("Encoder: time %5u ms, duty cycle %3u %%\n", encoder_ms, encoder_ms / audio_duration_in_seconds / 10);
-    printf("Decoder: time %5u ms, duty cycle %3u %%\n", decoder_ms, decoder_ms / audio_duration_in_seconds / 10);
+    if (diff_encoder == 0) {
+        printf("Warning: Timer resolution too coarse for encoder timing.\n");
+    }
+    if (diff_decoder == 0) {
+        printf("Warning: Timer resolution too coarse for decoder timing.\n");
+    }
+#endif
+
+    // Accumulate times
+    player_ms  += diff_player;
+    encoder_ms += diff_encoder;
+    decoder_ms += diff_decoder;    
+    
+    }
+    printf("Player:  time %5u ms, duty cycle %3u %%\n", player_ms,  player_ms  / audio_duration_in_seconds / 1000);
+    printf("Encoder: time %5u ms, duty cycle %3u %%\n", encoder_ms, encoder_ms / audio_duration_in_seconds / 1000);
+    printf("Decoder: time %5u ms, duty cycle %3u %%\n", decoder_ms, decoder_ms / audio_duration_in_seconds / 1000);
 
 #ifdef HAVE_POSIX_FILE_IO
     wav_writer_close();
