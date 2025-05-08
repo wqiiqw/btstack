@@ -237,7 +237,7 @@ int main(int argc, const char * argv[]){
     char *app_name = strndup( argv[0], PATH_MAX );
     char *base_name = basename( app_name );
     const char *pklg_postfix = ".btsnoop";
-    char pklg_path[PATH_MAX] = "/tmp/hci_dump_";
+    char pklg_path[PATH_MAX] = "/home/happyble/tmp/hci_dump_";
 
     btstack_strcat( pklg_path, sizeof(pklg_path), base_name );
     btstack_strcat( pklg_path, sizeof(pklg_path), pklg_postfix );
