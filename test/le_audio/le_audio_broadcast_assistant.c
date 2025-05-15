@@ -421,6 +421,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
 
         case GAP_EVENT_ADVERTISING_REPORT:
             // TODO: contains partial copy of GAP_EVENT_EXTENDED_ADVERTISING_REPORT below
+            //printf ("In GAP_EVENT_ADVERTISING_REPORT\n");
             adv_size = gap_event_advertising_report_get_data_length(packet);
             adv_data = gap_event_advertising_report_get_data(packet);
             adv_name[0] = 0;
@@ -434,9 +435,11 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                         uuid = little_endian_read_16(data, 0);
                         switch (uuid){
                             case ORG_BLUETOOTH_SERVICE_BROADCAST_AUDIO_ANNOUNCEMENT_SERVICE:
+                            case ORG_BLUETOOTH_SERVICE_PUBLIC_BROADCAST_ANNOUNCEMENT:
                                 if (scan_for_broadcast_source) {
                                     broadcast_sources[broadcast_source_count].broadcast_id = little_endian_read_24(data, 2);
                                     found_broadcast_source = true;
+                                    printf("Broadcast source found, broadcast_id %u\n", broadcast_sources[broadcast_source_count].broadcast_id);
                                 }
                                 break;
                             case ORG_BLUETOOTH_SERVICE_BROADCAST_AUDIO_SCAN_SERVICE:
