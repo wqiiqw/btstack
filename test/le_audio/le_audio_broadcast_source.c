@@ -37,7 +37,7 @@
 
 #define BTSTACK_FILE__ "le_audio_broadcast_source.c"
 
-#define COUNT_MODE
+//#define COUNT_MODE
 /*
  * LE Audio Broadcast Source
  */
@@ -103,8 +103,10 @@ static const uint8_t extended_adv_data[] = {
         BROADCAST_ID & 0xff,
         // name
 #if defined(NRF5340_BROADCAST_MODE)
-        20, BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME, 'N','R','F','5','3','4','0','_','B','R','O','A','D','C','A','S','T','E','R',
-        20, BLUETOOTH_DATA_TYPE_BROADCAST_NAME,      'N','R','F','5','3','4','0','_','B','R','O','A','D','C','A','S','T','E','R',
+        7, BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME, 'n', 'R', 'F', 'r', 'c', 'e',
+        7, BLUETOOTH_DATA_TYPE_BROADCAST_NAME,      'n', 'R', 'F', 'r', 'c', 'e',
+        //20, BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME, 'N','R','F','5','3','4','0','_','B','R','O','A','D','C','A','S','T','E','R',
+        //20, BLUETOOTH_DATA_TYPE_BROADCAST_NAME,      'N','R','F','5','3','4','0','_','B','R','O','A','D','C','A','S','T','E','R',
 #else
          7, BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME, 'S', 'o', 'u', 'r', 'c', 'e',
          7, BLUETOOTH_DATA_TYPE_BROADCAST_NAME,      'S', 'o', 'u', 'r', 'c', 'e',
@@ -236,6 +238,7 @@ static void print_config(void) {
 }
 
 static void setup_advertising() {
+    printf("in setup_advertising\n");
     bd_addr_t local_addr;
     gap_local_bd_addr(local_addr);
     bool local_address_invalid = btstack_is_null_bd_addr( local_addr );
@@ -252,9 +255,11 @@ static void setup_advertising() {
     gap_periodic_advertising_set_data(adv_handle, period_adv_data_len, period_adv_data);
     gap_periodic_advertising_start(adv_handle, 0);
     gap_extended_advertising_start(adv_handle, 0, 0);
+    printf("leaving setup_advertising\n");
 }
 
 static void setup_big(void){
+    printf("in setup_big\n");
     // Create BIG
     big_params.big_handle = 0;
     big_params.advertising_handle = adv_handle;
@@ -262,7 +267,7 @@ static void setup_big(void){
     big_params.max_sdu = octets_per_frame;
     big_params.max_transport_latency_ms = 31;
     big_params.rtn = 2;
-    big_params.phy = 2;
+    big_params.phy = 2;  // 1 for LE 1M, 2 for LE 2M
     big_params.packing = 0;
     big_params.encryption = encryption;
     if (encryption) {
@@ -280,10 +285,12 @@ static void setup_big(void){
     }
     app_state = APP_W4_CREATE_BIG_COMPLETE;
     gap_big_create(&big_storage, &big_params);
+    printf("leaving setup_big\n");
 }
 
 
 static void start_broadcast() {// use values from table
+    printf("in start_broadcast\n");
     sampling_frequency_hz = codec_configurations[menu_sampling_frequency].samplingrate_hz;
     octets_per_frame      = codec_configurations[menu_sampling_frequency].variants[menu_variant].octets_per_frame;
     frame_duration        = codec_configurations[menu_sampling_frequency].variants[menu_variant].frame_duration;
@@ -331,6 +338,7 @@ static void start_broadcast() {// use values from table
 
     // setup big
     setup_big();
+    printf("leaving start_broadcast\n");
 }
 
 static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
@@ -383,7 +391,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
             }
             break;
         case HCI_EVENT_BIS_CAN_SEND_NOW:
-            printf("HCI_EVENT_BIS_CAN_SEND_NOW\n");
+            //printf("HCI_EVENT_BIS_CAN_SEND_NOW\n");
             bis_index = hci_event_bis_can_send_now_get_bis_index(packet);
             le_audio_demo_util_source_send(bis_index, bis_con_handles[bis_index]);
             bis_index++;
