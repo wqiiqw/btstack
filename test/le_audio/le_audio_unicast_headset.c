@@ -152,6 +152,9 @@ static void create_cig() {
 }
 
 static void enter_streaming(void){
+    // Calculate number of samples per frame
+    number_samples_per_frame = (sampling_frequency_hz * frame_duration_us) / 1000000;
+
     // init source
     if (microphone_enable){
         le_audio_demo_util_source_configure(1, 1, sampling_frequency_hz, frame_duration, octets_per_frame);
@@ -330,6 +333,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
             }
             break;
         case HCI_EVENT_CIS_CAN_SEND_NOW:
+            //printf("HCI_EVENT_CIS_CAN_SEND_NOW triggered\n");
             le_audio_demo_util_source_send(0, cis_con_handles[0]);
             le_audio_demo_util_source_generate_iso_frame(AUDIO_SOURCE_SINE);
             hci_request_cis_can_send_now_events(cis_con_handles[0]);
