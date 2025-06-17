@@ -80,7 +80,7 @@ static bool shutdown_triggered;
 
 static hci_transport_config_uart_t config = {
     HCI_TRANSPORT_CONFIG_UART,
-    1000000,
+    115200, //1000000
     0,  // main baudrate
     1,  // flow control
     NULL,
@@ -166,7 +166,7 @@ int main(int argc, const char * argv[]){
     printf("Packet Log: %s\n", pklg_path);
 
     // pick serial port
-    config.device_name = "/dev/tty.usbmodem0006830491191"; // PCA10056 nRF52840 
+    config.device_name = "/dev/ttyACM0"; // PCA10056 nRF52840 
 
     // accept path from command line
     if (argc >= 3 && strcmp(argv[1], "-u") == 0){

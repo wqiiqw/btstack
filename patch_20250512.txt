@@ -1,0 +1,221 @@
+diff --git a/example/le_audio_demo_util_source.c b/example/le_audio_demo_util_source.c
+index e0d13cbcc..00aa3cad8 100644
+--- a/example/le_audio_demo_util_source.c
++++ b/example/le_audio_demo_util_source.c
+@@ -157,6 +157,7 @@ static void le_audio_demo_util_source_recording_stop(void) {
+ 
+ static void le_audio_demo_source_setup_lc3_encoder(void){
+     uint8_t channel;
++    //printf("setup lc3 encoder, %u channels\n", le_audio_demo_source_num_channels);
+     for (channel = 0 ; channel < le_audio_demo_source_num_channels ; channel++){
+         btstack_lc3_encoder_google_t * context = &le_audio_demo_source_encoder_contexts[channel];
+         le_audio_demo_source_lc3_encoder = btstack_lc3_encoder_google_init_instance(context);
+@@ -172,6 +173,7 @@ static void le_audio_demo_source_setup_mod_player(void){
+     if (!le_audio_demo_source_hxcmod_initialized) {
+         le_audio_demo_source_hxcmod_initialized = hxcmod_init(&le_audio_demo_source_hxcmod_context);
+         btstack_assert(le_audio_demo_source_hxcmod_initialized != 0);
++        //printf("mod player initialized; le_audio_demo_source_hxcmod_initialized is %d\n", le_audio_demo_source_hxcmod_initialized);
+     }
+     hxcmod_unload(&le_audio_demo_source_hxcmod_context);
+     hxcmod_setcfg(&le_audio_demo_source_hxcmod_context, le_audio_demo_source_sampling_frequency_hz, 1, 1);
+@@ -179,6 +181,7 @@ static void le_audio_demo_source_setup_mod_player(void){
+ }
+ 
+ static void le_audio_demo_source_setup_sine_generator(void){
++    //printf("setup sine generator, %u channels\n", le_audio_demo_source_num_channels);
+     // pre-compute sine for all channels
+     uint8_t channel;
+     for (channel = 0; channel < MAX_CHANNELS ; channel++){
+@@ -324,6 +327,8 @@ void le_audio_demo_util_source_generate_iso_frame(le_audio_demo_source_generator
+ void le_audio_demo_util_source_send(uint8_t stream_index, hci_con_handle_t con_handle){
+     btstack_assert(le_audio_demo_source_octets_per_frame != 0);
+ 
++    //printf("In le_audio_demo_util_source_send\n");
++
+     hci_reserve_packet_buffer();
+ 
+     uint8_t * buffer = hci_get_outgoing_packet_buffer();
+diff --git a/test/le_audio/CMakeLists.txt b/test/le_audio/CMakeLists.txt
+index 70017bfbc..b637b0f0c 100644
+--- a/test/le_audio/CMakeLists.txt
++++ b/test/le_audio/CMakeLists.txt
+@@ -83,13 +83,13 @@ add_library(btstack STATIC ${SOURCES})
+ find_package(PkgConfig REQUIRED)
+ 
+ # portaudio
+-# pkg_check_modules(PORTAUDIO portaudio-2.0)
+-# if(PORTAUDIO_FOUND)
+-# 	include_directories(${PORTAUDIO_INCLUDE_DIRS})
+-# 	target_link_directories(btstack PUBLIC ${PORTAUDIO_LIBRARY_DIRS})
+-# 	target_link_libraries(btstack ${PORTAUDIO_LIBRARIES})
+-# 	add_compile_definitions(HAVE_PORTAUDIO)
+-# endif()
++pkg_check_modules(PORTAUDIO portaudio-2.0)
++if(PORTAUDIO_FOUND)
++	include_directories(${PORTAUDIO_INCLUDE_DIRS})
++	target_link_directories(btstack PUBLIC ${PORTAUDIO_LIBRARY_DIRS})
++	target_link_libraries(btstack ${PORTAUDIO_LIBRARIES})
++	add_compile_definitions(HAVE_PORTAUDIO)
++endif()
+ 
+ # fdk-aac
+ pkg_check_modules(FDK_AAC fdk-aac)
+diff --git a/test/le_audio/include/btstack_config.h b/test/le_audio/include/btstack_config.h
+index 881c0450b..dae08d595 100644
+--- a/test/le_audio/include/btstack_config.h
++++ b/test/le_audio/include/btstack_config.h
+@@ -32,6 +32,7 @@
+ #define ENABLE_LE_PERIPHERAL
+ #define ENABLE_LE_PRIVACY_ADDRESS_RESOLUTION
+ #define ENABLE_LE_SECURE_CONNECTIONS
++//#define ENABLE_LOG_DEBUG
+ #define ENABLE_LOG_ERROR
+ #define ENABLE_LOG_INFO
+ #define ENABLE_MICRO_ECC_FOR_LE_SECURE_CONNECTIONS
+diff --git a/test/le_audio/le_audio_broadcast_assistant.c b/test/le_audio/le_audio_broadcast_assistant.c
+index e8027b0f4..8854369e9 100644
+--- a/test/le_audio/le_audio_broadcast_assistant.c
++++ b/test/le_audio/le_audio_broadcast_assistant.c
+@@ -421,6 +421,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
+ 
+         case GAP_EVENT_ADVERTISING_REPORT:
+             // TODO: contains partial copy of GAP_EVENT_EXTENDED_ADVERTISING_REPORT below
++            //printf ("In GAP_EVENT_ADVERTISING_REPORT\n");
+             adv_size = gap_event_advertising_report_get_data_length(packet);
+             adv_data = gap_event_advertising_report_get_data(packet);
+             adv_name[0] = 0;
+@@ -434,9 +435,11 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
+                         uuid = little_endian_read_16(data, 0);
+                         switch (uuid){
+                             case ORG_BLUETOOTH_SERVICE_BROADCAST_AUDIO_ANNOUNCEMENT_SERVICE:
++                            case ORG_BLUETOOTH_SERVICE_PUBLIC_BROADCAST_ANNOUNCEMENT:
+                                 if (scan_for_broadcast_source) {
+                                     broadcast_sources[broadcast_source_count].broadcast_id = little_endian_read_24(data, 2);
+                                     found_broadcast_source = true;
++                                    printf("Broadcast source found, broadcast_id %u\n", broadcast_sources[broadcast_source_count].broadcast_id);
+                                 }
+                                 break;
+                             case ORG_BLUETOOTH_SERVICE_BROADCAST_AUDIO_SCAN_SERVICE:
+diff --git a/test/le_audio/le_audio_broadcast_source.c b/test/le_audio/le_audio_broadcast_source.c
+index 75bfeb8aa..04e10b9f9 100644
+--- a/test/le_audio/le_audio_broadcast_source.c
++++ b/test/le_audio/le_audio_broadcast_source.c
+@@ -37,7 +37,7 @@
+ 
+ #define BTSTACK_FILE__ "le_audio_broadcast_source.c"
+ 
+-#define COUNT_MODE
++//#define COUNT_MODE
+ /*
+  * LE Audio Broadcast Source
+  */
+@@ -103,8 +103,10 @@ static const uint8_t extended_adv_data[] = {
+         BROADCAST_ID & 0xff,
+         // name
+ #if defined(NRF5340_BROADCAST_MODE)
+-        20, BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME, 'N','R','F','5','3','4','0','_','B','R','O','A','D','C','A','S','T','E','R',
+-        20, BLUETOOTH_DATA_TYPE_BROADCAST_NAME,      'N','R','F','5','3','4','0','_','B','R','O','A','D','C','A','S','T','E','R',
++        7, BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME, 'n', 'R', 'F', 'r', 'c', 'e',
++        7, BLUETOOTH_DATA_TYPE_BROADCAST_NAME,      'n', 'R', 'F', 'r', 'c', 'e',
++        //20, BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME, 'N','R','F','5','3','4','0','_','B','R','O','A','D','C','A','S','T','E','R',
++        //20, BLUETOOTH_DATA_TYPE_BROADCAST_NAME,      'N','R','F','5','3','4','0','_','B','R','O','A','D','C','A','S','T','E','R',
+ #else
+          7, BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME, 'S', 'o', 'u', 'r', 'c', 'e',
+          7, BLUETOOTH_DATA_TYPE_BROADCAST_NAME,      'S', 'o', 'u', 'r', 'c', 'e',
+@@ -236,6 +238,7 @@ static void print_config(void) {
+ }
+ 
+ static void setup_advertising() {
++    printf("in setup_advertising\n");
+     bd_addr_t local_addr;
+     gap_local_bd_addr(local_addr);
+     bool local_address_invalid = btstack_is_null_bd_addr( local_addr );
+@@ -252,9 +255,11 @@ static void setup_advertising() {
+     gap_periodic_advertising_set_data(adv_handle, period_adv_data_len, period_adv_data);
+     gap_periodic_advertising_start(adv_handle, 0);
+     gap_extended_advertising_start(adv_handle, 0, 0);
++    printf("leaving setup_advertising\n");
+ }
+ 
+ static void setup_big(void){
++    printf("in setup_big\n");
+     // Create BIG
+     big_params.big_handle = 0;
+     big_params.advertising_handle = adv_handle;
+@@ -280,10 +285,12 @@ static void setup_big(void){
+     }
+     app_state = APP_W4_CREATE_BIG_COMPLETE;
+     gap_big_create(&big_storage, &big_params);
++    printf("leaving setup_big\n");
+ }
+ 
+ 
+ static void start_broadcast() {// use values from table
++    printf("in start_broadcast\n");
+     sampling_frequency_hz = codec_configurations[menu_sampling_frequency].samplingrate_hz;
+     octets_per_frame      = codec_configurations[menu_sampling_frequency].variants[menu_variant].octets_per_frame;
+     frame_duration        = codec_configurations[menu_sampling_frequency].variants[menu_variant].frame_duration;
+@@ -331,6 +338,7 @@ static void start_broadcast() {// use values from table
+ 
+     // setup big
+     setup_big();
++    printf("leaving start_broadcast\n");
+ }
+ 
+ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
+@@ -383,7 +391,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
+             }
+             break;
+         case HCI_EVENT_BIS_CAN_SEND_NOW:
+-            printf("HCI_EVENT_BIS_CAN_SEND_NOW\n");
++            //printf("HCI_EVENT_BIS_CAN_SEND_NOW\n");
+             bis_index = hci_event_bis_can_send_now_get_bis_index(packet);
+             le_audio_demo_util_source_send(bis_index, bis_con_handles[bis_index]);
+             bis_index++;
+diff --git a/test/le_audio/le_audio_unicast_gateway.c b/test/le_audio/le_audio_unicast_gateway.c
+index 5753d7eb2..64f6d1397 100644
+--- a/test/le_audio/le_audio_unicast_gateway.c
++++ b/test/le_audio/le_audio_unicast_gateway.c
+@@ -306,6 +306,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
+             }
+             break;
+         case HCI_EVENT_CIS_CAN_SEND_NOW:
++            printf("HCI_EVENT_CIS_CAN_SEND_NOW triggered\n");
+             cis_con_handle = hci_event_cis_can_send_now_get_cis_con_handle(packet);
+             for (i=0;i<num_cis;i++){
+                 if (cis_con_handle == cis_con_handles[i]){
+diff --git a/test/le_audio/le_audio_unicast_headset.c b/test/le_audio/le_audio_unicast_headset.c
+index 70893d8a6..0c694d9b9 100644
+--- a/test/le_audio/le_audio_unicast_headset.c
++++ b/test/le_audio/le_audio_unicast_headset.c
+@@ -152,6 +152,9 @@ static void create_cig() {
+ }
+ 
+ static void enter_streaming(void){
++    // Calculate number of samples per frame
++    number_samples_per_frame = (sampling_frequency_hz * frame_duration_us) / 1000000;
++
+     // init source
+     if (microphone_enable){
+         le_audio_demo_util_source_configure(1, 1, sampling_frequency_hz, frame_duration, octets_per_frame);
+@@ -330,6 +333,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
+             }
+             break;
+         case HCI_EVENT_CIS_CAN_SEND_NOW:
++            //printf("HCI_EVENT_CIS_CAN_SEND_NOW triggered\n");
+             le_audio_demo_util_source_send(0, cis_con_handles[0]);
+             le_audio_demo_util_source_generate_iso_frame(AUDIO_SOURCE_SINE);
+             hci_request_cis_can_send_now_events(cis_con_handles[0]);
+diff --git a/test/le_audio/main.c b/test/le_audio/main.c
+index 630a2beb6..bb8dc8e8c 100644
+--- a/test/le_audio/main.c
++++ b/test/le_audio/main.c
+@@ -265,6 +265,8 @@ int main(int argc, const char * argv[]){
+     // register callback for CTRL-c
+     btstack_signal_register_callback(SIGINT, &trigger_shutdown);
+ 
++    printf("2025/05/12 Debugging on Monday: \n");
++
+     // setup app
+     btstack_main(argc, argv);
+ 

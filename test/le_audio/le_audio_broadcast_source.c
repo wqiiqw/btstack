@@ -64,7 +64,7 @@
 #include "le_audio_demo_util_source.h"
 
 // Interoperability with Nordic LE Audio demo
-#define NRF5340_BROADCAST_MODE
+//#define NRF5340_BROADCAST_MODE
 
 // max config
 #define MAX_NUM_BIS 2
@@ -108,8 +108,8 @@ static const uint8_t extended_adv_data[] = {
         //20, BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME, 'N','R','F','5','3','4','0','_','B','R','O','A','D','C','A','S','T','E','R',
         //20, BLUETOOTH_DATA_TYPE_BROADCAST_NAME,      'N','R','F','5','3','4','0','_','B','R','O','A','D','C','A','S','T','E','R',
 #else
-         7, BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME, 'S', 'o', 'u', 'r', 'c', 'e',
-         7, BLUETOOTH_DATA_TYPE_BROADCAST_NAME,      'S', 'o', 'u', 'r', 'c', 'e',
+         7, BLUETOOTH_DATA_TYPE_COMPLETE_LOCAL_NAME, 'M', 'P', 'W', '3', '^', '^',
+         7, BLUETOOTH_DATA_TYPE_BROADCAST_NAME,      'M', 'P', 'W', '3', '^', '^',
 #endif
 };
 
@@ -267,7 +267,7 @@ static void setup_big(void){
     big_params.max_sdu = octets_per_frame;
     big_params.max_transport_latency_ms = 31;
     big_params.rtn = 2;
-    big_params.phy = 2;  // 1 for LE 1M, 2 for LE 2M
+    big_params.phy = 1;  // 1 for LE 1M, 2 for LE 2M
     big_params.packing = 0;
     big_params.encryption = encryption;
     if (encryption) {
@@ -358,9 +358,13 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                     start_broadcast();
 #elif defined( NRF5340_BROADCAST_MODE )
                     num_bis = 1;
-                    menu_sampling_frequency = 5;
+                    menu_sampling_frequency = 0;
                     menu_variant = 1;
 #else
+                    num_bis = 1;
+                    menu_sampling_frequency = 0;   // First config (8kHz)
+                    menu_variant = 1;              // Second variant (8_2 with 10ms, 30 octets)
+                    audio_source = AUDIO_SOURCE_MODPLAYER;  // Optional: set sine as default audio source
                     show_usage();
                     printf("Please select sample frequency and variation, then start broadcast\n");
 #endif

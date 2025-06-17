@@ -157,6 +157,7 @@ static void le_audio_demo_util_source_recording_stop(void) {
 
 static void le_audio_demo_source_setup_lc3_encoder(void){
     uint8_t channel;
+    //printf("setup lc3 encoder, %u channels\n", le_audio_demo_source_num_channels);
     for (channel = 0 ; channel < le_audio_demo_source_num_channels ; channel++){
         btstack_lc3_encoder_google_t * context = &le_audio_demo_source_encoder_contexts[channel];
         le_audio_demo_source_lc3_encoder = btstack_lc3_encoder_google_init_instance(context);
@@ -172,6 +173,7 @@ static void le_audio_demo_source_setup_mod_player(void){
     if (!le_audio_demo_source_hxcmod_initialized) {
         le_audio_demo_source_hxcmod_initialized = hxcmod_init(&le_audio_demo_source_hxcmod_context);
         btstack_assert(le_audio_demo_source_hxcmod_initialized != 0);
+        //printf("mod player initialized; le_audio_demo_source_hxcmod_initialized is %d\n", le_audio_demo_source_hxcmod_initialized);
     }
     hxcmod_unload(&le_audio_demo_source_hxcmod_context);
     hxcmod_setcfg(&le_audio_demo_source_hxcmod_context, le_audio_demo_source_sampling_frequency_hz, 1, 1);
@@ -179,6 +181,7 @@ static void le_audio_demo_source_setup_mod_player(void){
 }
 
 static void le_audio_demo_source_setup_sine_generator(void){
+    //printf("setup sine generator, %u channels\n", le_audio_demo_source_num_channels);
     // pre-compute sine for all channels
     uint8_t channel;
     for (channel = 0; channel < MAX_CHANNELS ; channel++){
@@ -323,6 +326,8 @@ void le_audio_demo_util_source_generate_iso_frame(le_audio_demo_source_generator
 
 void le_audio_demo_util_source_send(uint8_t stream_index, hci_con_handle_t con_handle){
     btstack_assert(le_audio_demo_source_octets_per_frame != 0);
+
+    //printf("In le_audio_demo_util_source_send\n");
 
     hci_reserve_packet_buffer();
 

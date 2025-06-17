@@ -95,7 +95,7 @@ static void local_version_information_handler(uint8_t * packet);
 
 static hci_transport_config_uart_t config = {
     HCI_TRANSPORT_CONFIG_UART,
-    1000000,  //115200
+    500000, //1000000,  //115200
     0,  // main baudrate
     1,  // flow control
     NULL,
@@ -264,6 +264,8 @@ int main(int argc, const char * argv[]){
 
     // register callback for CTRL-c
     btstack_signal_register_callback(SIGINT, &trigger_shutdown);
+
+    printf("2025/05/16 Debugging on Friday: \n");
 
     // setup app
     btstack_main(argc, argv);
