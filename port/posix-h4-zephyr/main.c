@@ -80,7 +80,7 @@ static bool shutdown_triggered;
 
 static hci_transport_config_uart_t config = {
     HCI_TRANSPORT_CONFIG_UART,
-    115200, //1000000
+    500000, //1000000 115200 500000
     0,  // main baudrate
     1,  // flow control
     NULL,
