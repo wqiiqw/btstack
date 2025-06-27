@@ -37,7 +37,7 @@
 
 #define BTSTACK_FILE__ "le_audio_broadcast_source.c"
 
-//#define COUNT_MODE
+#define COUNT_MODE
 /*
  * LE Audio Broadcast Source
  */
@@ -226,14 +226,14 @@ static struct {
 static void show_usage(void);
 
 static void print_config(void) {
-    static const char * generator[] = { "Sine", "Modplayer", "Recording"};
+    static const char * generator[] = { "Counter", "Sine", "Modplayer", "Recording"};
     printf("Config '%s_%u': %u, %s ms, %u octets - %s%s\n",
            codec_configurations[menu_sampling_frequency].variants[menu_variant].name,
            num_bis,
            codec_configurations[menu_sampling_frequency].samplingrate_hz,
            codec_configurations[menu_sampling_frequency].variants[menu_variant].frame_duration == BTSTACK_LC3_FRAME_DURATION_7500US ? "7.5" : "10",
            codec_configurations[menu_sampling_frequency].variants[menu_variant].octets_per_frame,
-           generator[audio_source - AUDIO_SOURCE_SINE],
+           generator[audio_source - AUDIO_SOURCE_COUNTER],
            encryption ? " (encrypted)" : "");
 }
 
@@ -291,6 +291,7 @@ static void setup_big(void){
 
 static void start_broadcast() {// use values from table
     printf("in start_broadcast\n");
+    printf("The value of audio_source is %u\n", audio_source);
     sampling_frequency_hz = codec_configurations[menu_sampling_frequency].samplingrate_hz;
     octets_per_frame      = codec_configurations[menu_sampling_frequency].variants[menu_variant].octets_per_frame;
     frame_duration        = codec_configurations[menu_sampling_frequency].variants[menu_variant].frame_duration;
@@ -364,7 +365,9 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                     num_bis = 1;
                     menu_sampling_frequency = 0;   // First config (8kHz)
                     menu_variant = 1;              // Second variant (8_2 with 10ms, 30 octets)
+#ifndef COUNT_MODE
                     audio_source = AUDIO_SOURCE_MODPLAYER;  // Optional: set sine as default audio source
+#endif
                     show_usage();
                     printf("Please select sample frequency and variation, then start broadcast\n");
 #endif
@@ -473,8 +476,11 @@ static void stdin_process(char c){
             break;
         case 'x':
             switch (audio_source){
-                case AUDIO_SOURCE_MODPLAYER:
+                case AUDIO_SOURCE_COUNTER:
                     audio_source = AUDIO_SOURCE_SINE;
+                    break;
+                case AUDIO_SOURCE_MODPLAYER:
+                    audio_source = AUDIO_SOURCE_COUNTER;
                     break;
                 case AUDIO_SOURCE_SINE:
                     audio_source = AUDIO_SOURCE_RECORDING;

@@ -265,7 +265,7 @@ int main(int argc, const char * argv[]){
     // register callback for CTRL-c
     btstack_signal_register_callback(SIGINT, &trigger_shutdown);
 
-    printf("2025/05/16 Debugging on Friday: \n");
+    printf("2025/06/27 Debugging on Friday: \n");
 
     // setup app
     btstack_main(argc, argv);
