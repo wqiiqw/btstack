@@ -124,6 +124,7 @@ endforeach(EXAMPLE)
 # Add COM30 UART source files
 target_sources(btstack PRIVATE
     com30_uart.c
+	com31_uart.c
 )
 
 # Add include directory
