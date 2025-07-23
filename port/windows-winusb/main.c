@@ -50,6 +50,8 @@
 #include <signal.h>
 
 #include "btstack_config.h"
+#include "btstack.h"
+#include "com30_uart.h"
 
 #include "ble/le_device_db_tlv.h"
 #include "btstack_audio.h"
@@ -80,6 +82,37 @@ static const btstack_tlv_t * tlv_impl;
 static btstack_tlv_windows_t   tlv_context;
 static bd_addr_t             local_addr;
 static bool shutdown_triggered;
+
+// Application state
+static uint8_t com30_rx_buffer[256];
+static bool waiting_for_com30_data = false;
+
+// COM30 callbacks
+static void com30_data_received(uint8_t *data, uint16_t len) {
+    printf("COM30 received %u bytes: ", len);
+    for (int i = 0; i < len; i++) {
+        printf("%02X ", data[i]);
+    }
+    printf("\n");
+    
+    waiting_for_com30_data = false;
+    
+    // Echo the data back
+    com30_uart_send(data, len);
+}
+
+static void com30_data_sent(void) {
+    printf("COM30 data sent successfully\n");
+    
+    // Start next receive
+    waiting_for_com30_data = true;
+    com30_uart_receive(com30_rx_buffer, sizeof(com30_rx_buffer));
+}
+
+static void com30_error_occurred(int error_code) {
+    printf("COM30 error: %d\n", error_code);
+    waiting_for_com30_data = false;
+}
 
 static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
     if (packet_type != HCI_EVENT_PACKET) return;
@@ -138,9 +171,9 @@ int main(int argc, const char * argv[]){
     btstack_memory_init();
     btstack_run_loop_init(btstack_run_loop_windows_get_instance());
 
-    // log into file using HCI_DUMP_PACKETLOGGER format
-    const char * pklg_path = "hci_dump.pklg";
-    hci_dump_windows_fs_open(pklg_path, HCI_DUMP_PACKETLOGGER);
+    // log into file using HCI_DUMP_BTSNOOP format
+    const char * pklg_path = "hci_dump.btsnoop";
+    hci_dump_windows_fs_open(pklg_path, HCI_DUMP_BTSNOOP);
     const hci_dump_t * hci_dump_impl = hci_dump_windows_fs_get_instance();
     hci_dump_init(hci_dump_impl);
     printf("Packet Log: %s\n", pklg_path);
@@ -164,8 +197,44 @@ int main(int argc, const char * argv[]){
     // setup app
     btstack_main(argc, argv);
 
+    // Initialize COM30 UART (for your application)
+    com30_uart_config_t com30_config = {
+        .port_name = "COM8",
+        .baudrate = 115200,
+        .flowcontrol = 1,
+        .parity = 0
+    };
+    
+    if (com30_uart_init(&com30_config) != 0) {
+        printf("Failed to initialize COM30 UART\n");
+        return -1;
+    }
+    
+    if (com30_uart_open() != 0) {
+        printf("Failed to open COM30 UART\n");
+        return -1;
+    }
+    
+    com30_uart_set_callbacks(com30_data_received, com30_data_sent, com30_error_occurred);
+    
+    printf("BTstack with %s UART starting...\n", com30_config.port_name);
+    
+    // Send "Hello World" example to COM30
+    const char* hello_message = "Hello World\n";
+    printf("Sending '%s' to %s...\n", hello_message, com30_config.port_name);
+    if (com30_uart_send((const uint8_t*)hello_message, strlen(hello_message)) == 0) {
+        printf("%s send initiated successfully\n", com30_config.port_name);
+    } else {
+        printf("%s send failed\n", com30_config.port_name);
+    }
+    
+    // Power up Bluetooth
+    hci_power_control(HCI_POWER_ON);
+    
     // go
     btstack_run_loop_execute();
 
+    // Cleanup
+    com30_uart_close();
     return 0;
 }

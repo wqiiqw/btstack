@@ -120,3 +120,13 @@ foreach(EXAMPLE ${EXAMPLES})
 	add_executable(${EXAMPLE} ${SOURCES_EXAMPLE})
 	target_link_libraries(${EXAMPLE} btstack setupapi winusb)
 endforeach(EXAMPLE)
+
+# Add COM30 UART source files
+target_sources(btstack PRIVATE
+    com30_uart.c
+)
+
+# Add include directory
+target_include_directories(btstack PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
