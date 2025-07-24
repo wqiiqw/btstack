@@ -67,7 +67,8 @@
 #include "hal_led.h"
 #include "hci.h"
 #include "hci_dump.h"
-#include "hci_dump_windows_fs.h"
+//#include "hci_dump_windows_fs.h"
+#include "hci_dump_epm_embedded_async_uart.h"
 #include "hci_transport.h"
 #include "hci_transport_usb.h"
 
@@ -174,7 +175,7 @@ int main(int argc, const char * argv[]){
     // log into file using HCI_DUMP_BTSNOOP format
     const char * pklg_path = "hci_dump.btsnoop";
     hci_dump_windows_fs_open(pklg_path, HCI_DUMP_BTSNOOP);
-    const hci_dump_t * hci_dump_impl = hci_dump_windows_fs_get_instance();
+    const hci_dump_t * hci_dump_impl = hci_dump_epm_embedded_async_uart_get_instance();
     hci_dump_init(hci_dump_impl);
     printf("Packet Log: %s\n", pklg_path);
 
