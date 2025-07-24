@@ -51,6 +51,7 @@
 
 
 #include "hci_dump_windows_stdout.h"
+#include "log_async_write.h"
 
 #ifndef ENABLE_PRINTF_HEXDUMP
 #error "HCI Dump on stdout requires ENABLE_PRINTF_HEXDUMP to be defined. Use different hci dump implementation or add ENABLE_PRINTF_HEXDUMP to btstack_config.h"
@@ -58,13 +59,13 @@
 
 static char log_message_buffer[HCI_DUMP_MAX_MESSAGE_LEN];
 
-static void hci_dump_windows_stdout_timestamp(void){
+static void hci_dump_epm_embedded_async_uart_timestamp(void){
 	SYSTEMTIME lt;
 	GetLocalTime(&lt);
 	printf("[%04u-%02u-%02u %02u:%02u:%02u.%3u] ", lt.wYear, lt.wMonth, lt.wDay, lt.wHour, lt.wMinute, lt.wSecond, lt.wMilliseconds);
 }
 
-static void hci_dump_windows_stdout_packet(uint8_t packet_type, uint8_t in, uint8_t * packet, uint16_t len){
+static void hci_dump_epm_embedded_async_uart_packet(uint8_t packet_type, uint8_t in, uint8_t * packet, uint16_t len){
     switch (packet_type){
         case HCI_COMMAND_DATA_PACKET:
             printf("CMD => ");
@@ -120,15 +121,15 @@ static void hci_dump_windows_stdout_packet(uint8_t packet_type, uint8_t in, uint
     printf_hexdump(packet, len);
 }
 
-static void hci_dump_windows_stdout_log_packet(uint8_t packet_type, uint8_t in, uint8_t *packet, uint16_t len) {
-    hci_dump_windows_stdout_timestamp();
-    hci_dump_windows_stdout_packet(packet_type, in, packet, len);
+static void hci_dump_epm_embedded_async_uart_log_packet(uint8_t packet_type, uint8_t in, uint8_t *packet, uint16_t len) {
+    hci_dump_epm_embedded_async_uart_timestamp();
+    hci_dump_epm_embedded_async_uart_packet(packet_type, in, packet, len);
 }
 
-static void hci_dump_windows_stdout_log_message(int log_level, const char * format, va_list argptr){
+static void hci_dump_epm_embedded_async_uart_log_message(int log_level, const char * format, va_list argptr){
     UNUSED(log_level);
     int len = vsnprintf(log_message_buffer, sizeof(log_message_buffer), format, argptr);
-    hci_dump_windows_stdout_log_packet(LOG_MESSAGE_PACKET, 0, (uint8_t*) log_message_buffer, len);
+    hci_dump_epm_embedded_async_uart_log_packet(LOG_MESSAGE_PACKET, 0, (uint8_t*) log_message_buffer, len);
 }
 
 const hci_dump_t * hci_dump_epm_embedded_async_uart_get_instance(void){
@@ -136,9 +137,10 @@ const hci_dump_t * hci_dump_epm_embedded_async_uart_get_instance(void){
         // void (*reset)(void);
         NULL,
         // void (*log_packet)(uint8_t packet_type, uint8_t in, uint8_t *packet, uint16_t len);
-        &hci_dump_windows_stdout_log_packet,
+        &hci_dump_epm_embedded_async_uart_log_packet,
         // void (*log_message)(int log_level, const char * format, va_list argptr);
-        &hci_dump_windows_stdout_log_message,
+        &hci_dump_epm_embedded_async_uart_log_message,
     };
+    log_async_write_init();  // Initialize async write for UART
     return &hci_dump_instance;
 }

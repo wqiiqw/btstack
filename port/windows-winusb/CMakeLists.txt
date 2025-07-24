@@ -121,11 +121,6 @@ foreach(EXAMPLE ${EXAMPLES})
 	target_link_libraries(${EXAMPLE} btstack setupapi winusb)
 endforeach(EXAMPLE)
 
-# Add COM30 UART source files
-target_sources(btstack PRIVATE
-    com30_uart.c
-	com31_uart.c
-)
 
 # Add include directory
 target_include_directories(btstack PRIVATE
