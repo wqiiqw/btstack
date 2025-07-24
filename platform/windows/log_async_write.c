@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
 #include "btstack_ring_buffer.h"
 #include "btstack_run_loop.h"
 #include "btstack_debug.h"
@@ -141,6 +142,26 @@ void log_async_write_init(void) {
     _tslog_initialized = true;
     
     printf("log_async: Initialized with %d byte ring buffer\n", TSLOG_STORAGE_SIZE);
+
+    // Initialize COM30 UART (for your application)
+    com30_uart_config_t com30_config = {
+        .port_name = "COM8",
+        .baudrate = 500000,
+        .flowcontrol = 1,
+        .parity = 0
+    };
+    
+    if (com30_uart_init(&com30_config) != 0) {
+        printf("Failed to initialize COM30 UART\n");
+        return;
+    }
+    
+    if (com30_uart_open() != 0) {
+        printf("Failed to open COM30 UART\n");
+        return;
+    }
+    
+    printf("BTstack with %s UART starting...\n", com30_config.port_name);
 }
 
 void log_async_write(const void * data, int size) {
@@ -210,7 +231,11 @@ void log_async_write_deinit(void) {
     
     // Final flush attempt
     log_async_flush_task(&_tslog_flush_timer);
-    
+
+    // Cleanup
+    printf("log_async: Closing COM30 UART\n");
+    com30_uart_close();
+
     // Mark as uninitialized
     _tslog_initialized = false;
     

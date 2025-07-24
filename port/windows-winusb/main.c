@@ -147,11 +147,16 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
     }
 }
 
+extern void log_async_write_deinit(void);
+
 static void trigger_shutdown(void){
     printf("CTRL-C - SIGINT received, shutting down..\n");
     log_info("sigint_handler: shutting down");
     shutdown_triggered = true;
     hci_power_control(HCI_POWER_OFF);
+
+    log_async_write_deinit();
+
 }
 
 static int led_state = 0;
@@ -159,6 +164,7 @@ void hal_led_toggle(void){
     led_state = 1 - led_state;
     printf("LED State %u\n", led_state);
 }
+
 
 #define USB_MAX_PATH_LEN 7
 int main(int argc, const char * argv[]){
@@ -197,45 +203,12 @@ int main(int argc, const char * argv[]){
 
     // setup app
     btstack_main(argc, argv);
-
-    // Initialize COM30 UART (for your application)
-    com30_uart_config_t com30_config = {
-        .port_name = "COM8",
-        .baudrate = 500000,
-        .flowcontrol = 1,
-        .parity = 0
-    };
-    
-    if (com30_uart_init(&com30_config) != 0) {
-        printf("Failed to initialize COM30 UART\n");
-        return -1;
-    }
-    
-    if (com30_uart_open() != 0) {
-        printf("Failed to open COM30 UART\n");
-        return -1;
-    }
-    
-    com30_uart_set_callbacks(com30_data_received, com30_data_sent, com30_error_occurred);
-    
-    printf("BTstack with %s UART starting...\n", com30_config.port_name);
-    
-    // Send "Hello World" example to COM30
-    const char* hello_message = "Hello World\n";
-    printf("Sending '%s' to %s...\n", hello_message, com30_config.port_name);
-    // if (com30_uart_send((const uint8_t*)hello_message, strlen(hello_message)) == 0) {
-    //     printf("%s send initiated successfully\n", com30_config.port_name);
-    // } else {
-    //     printf("%s send failed\n", com30_config.port_name);
-    // }
-    
+   
     // Power up Bluetooth
     hci_power_control(HCI_POWER_ON);
     
     // go
     btstack_run_loop_execute();
 
-    // Cleanup
-    com30_uart_close();
     return 0;
 }
