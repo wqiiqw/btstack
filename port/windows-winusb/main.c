@@ -201,7 +201,7 @@ int main(int argc, const char * argv[]){
     // Initialize COM30 UART (for your application)
     com30_uart_config_t com30_config = {
         .port_name = "COM8",
-        .baudrate = 115200,
+        .baudrate = 500000,
         .flowcontrol = 1,
         .parity = 0
     };
@@ -223,11 +223,11 @@ int main(int argc, const char * argv[]){
     // Send "Hello World" example to COM30
     const char* hello_message = "Hello World\n";
     printf("Sending '%s' to %s...\n", hello_message, com30_config.port_name);
-    if (com30_uart_send((const uint8_t*)hello_message, strlen(hello_message)) == 0) {
-        printf("%s send initiated successfully\n", com30_config.port_name);
-    } else {
-        printf("%s send failed\n", com30_config.port_name);
-    }
+    // if (com30_uart_send((const uint8_t*)hello_message, strlen(hello_message)) == 0) {
+    //     printf("%s send initiated successfully\n", com30_config.port_name);
+    // } else {
+    //     printf("%s send failed\n", com30_config.port_name);
+    // }
     
     // Power up Bluetooth
     hci_power_control(HCI_POWER_ON);

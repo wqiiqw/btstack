@@ -35,101 +35,115 @@
  *
  */
 
-#define BTSTACK_FILE__ "hci_dump_windows_stdout.c"
+#define BTSTACK_FILE__ "hci_dump_epm_embedded_async_uart.c"
 
-
-#include <Windows.h>
 /*
- *  Dump HCI trace on stdout
+ *  Dump HCI trace via async UART in H4 format
  */
 
 #include "hci_dump.h"
 #include "btstack_config.h"
 #include "hci.h"
 #include "hci_cmd.h"
-#include <stdio.h>
-
-
-#include "hci_dump_windows_stdout.h"
 #include "log_async_write.h"
+#include <stdio.h>
+#include <string.h>
 
-#ifndef ENABLE_PRINTF_HEXDUMP
-#error "HCI Dump on stdout requires ENABLE_PRINTF_HEXDUMP to be defined. Use different hci dump implementation or add ENABLE_PRINTF_HEXDUMP to btstack_config.h"
-#endif
+// H4 packet type indicators
+#define H4_CMD      0x01    // HCI Command
+#define H4_ACL      0x02    // ACL Data  
+#define H4_SCO      0x03    // SCO Data
+#define H4_EVT      0x04    // HCI Event
+#define H4_ISO      0x05    // ISO Data
+
+// Buffer for H4 packet formatting
+#define H4_PACKET_BUFFER_SIZE 1024
+static uint8_t h4_packet_buffer[H4_PACKET_BUFFER_SIZE];
 
 static char log_message_buffer[HCI_DUMP_MAX_MESSAGE_LEN];
 
-static void hci_dump_epm_embedded_async_uart_timestamp(void){
-	SYSTEMTIME lt;
-	GetLocalTime(&lt);
-	printf("[%04u-%02u-%02u %02u:%02u:%02u.%3u] ", lt.wYear, lt.wMonth, lt.wDay, lt.wHour, lt.wMinute, lt.wSecond, lt.wMilliseconds);
-}
-
+// Format and send HCI packet in H4 format
+// Enhanced version that preserves direction information
 static void hci_dump_epm_embedded_async_uart_packet(uint8_t packet_type, uint8_t in, uint8_t * packet, uint16_t len){
+    // Skip packets that are too large (reserve 1 byte for H4 type only)
+    if (len + 1 > H4_PACKET_BUFFER_SIZE) {
+        return;
+    }
+    
+    // Convert BTstack packet type to H4 format
+    uint8_t h4_type;
+    bool should_forward = true;
+    
     switch (packet_type){
         case HCI_COMMAND_DATA_PACKET:
-            printf("CMD => ");
+            h4_type = H4_CMD;
             break;
         case HCI_EVENT_PACKET:
-            printf("EVT <= ");
+            h4_type = H4_EVT;
             break;
         case HCI_ACL_DATA_PACKET:
 #ifdef HCI_DUMP_STDOUT_MAX_SIZE_ACL
             if (len > HCI_DUMP_STDOUT_MAX_SIZE_ACL){
-                printf("LOG -- ACL %s, size %u\n", in ? "in" : "out", len);
                 return;
             }
 #endif
-            if (in) {
-                printf("ACL <= ");
-            } else {
-                printf("ACL => ");
-            }
+            h4_type = H4_ACL;
             break;
         case HCI_SCO_DATA_PACKET:
 #ifdef HCI_DUMP_STDOUT_MAX_SIZE_SCO
             if (len > HCI_DUMP_STDOUT_MAX_SIZE_SCO){
-                printf("LOG -- SCO %s, size %u\n", in ? "in" : "out", len);
                 return;
             }
 #endif
-            if (in) {
-                printf("SCO <= ");
-            } else {
-                printf("SCO => ");
-            }
+            h4_type = H4_SCO;
             break;
         case HCI_ISO_DATA_PACKET:
 #ifdef HCI_DUMP_STDOUT_MAX_SIZE_ISO
             if (len > HCI_DUMP_STDOUT_MAX_SIZE_ISO){
-                printf("LOG -- ISO %s, size %u\n", in ? "in" : "out", len);
                 return;
             }
 #endif
-            if (in) {
-                printf("ISO <= ");
-            } else {
-                printf("ISO => ");
-            }
+            h4_type = H4_ISO;
             break;
         case LOG_MESSAGE_PACKET:
-            printf("LOG -- %s\n", (char*) packet);
+            // Send log messages as text with special marker
+            static const char log_prefix[] = "LOG: ";
+            log_async_write(log_prefix, sizeof(log_prefix) - 1);
+            log_async_write(packet, len);
+            log_async_write("\n", 1);
             return;
         default:
             return;
     }
-    printf_hexdump(packet, len);
+    
+    if (!should_forward) {
+        return;
+    }
+    
+    // Build Standard H4 packet: [H4_TYPE][HCI_PACKET_DATA] (Wireshark compatible)
+    h4_packet_buffer[0] = h4_type;
+    memcpy(&h4_packet_buffer[1], packet, len);
+    
+    // Send standard H4 packet via async UART
+    log_async_write(h4_packet_buffer, len + 1);
 }
 
 static void hci_dump_epm_embedded_async_uart_log_packet(uint8_t packet_type, uint8_t in, uint8_t *packet, uint16_t len) {
-    hci_dump_epm_embedded_async_uart_timestamp();
     hci_dump_epm_embedded_async_uart_packet(packet_type, in, packet, len);
 }
 
+int _log_message = 0;
 static void hci_dump_epm_embedded_async_uart_log_message(int log_level, const char * format, va_list argptr){
     UNUSED(log_level);
+
+    if (!_log_message) {
+        // Avoid logging if not enabled
+        return;
+    }
     int len = vsnprintf(log_message_buffer, sizeof(log_message_buffer), format, argptr);
-    hci_dump_epm_embedded_async_uart_log_packet(LOG_MESSAGE_PACKET, 0, (uint8_t*) log_message_buffer, len);
+    if (len > 0 && len < (int)sizeof(log_message_buffer)) {
+        hci_dump_epm_embedded_async_uart_log_packet(LOG_MESSAGE_PACKET, 0, (uint8_t*) log_message_buffer, len);
+    }
 }
 
 const hci_dump_t * hci_dump_epm_embedded_async_uart_get_instance(void){

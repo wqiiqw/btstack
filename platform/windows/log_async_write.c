@@ -65,7 +65,7 @@ static void log_async_flush_task(btstack_timer_source_t *ts) {
         if (result != 0) {
             // Send failed - count as lost data
             _tslog_lost_count += bytes_read;
-            log_debug("log_async: COM30 send failed, %lu bytes lost", (unsigned long)bytes_read);
+            printf("log_async: COM30 send failed, %lu bytes lost", (unsigned long)bytes_read);
         }
     }
     
@@ -110,7 +110,7 @@ void log_async_write_init(void) {
     // Mark as initialized
     _tslog_initialized = true;
     
-    log_info("log_async: Initialized with %d byte ring buffer", TSLOG_STORAGE_SIZE);
+    printf("log_async: Initialized with %d byte ring buffer", TSLOG_STORAGE_SIZE);
 }
 
 void log_async_write(const void * data, int size) {
@@ -133,7 +133,7 @@ void log_async_write(const void * data, int size) {
     if (result != 0) {
         // Write failed - count as lost (this shouldn't happen if we checked free space correctly)
         _tslog_lost_count += (uint32_t)size;
-        log_debug("log_async: Ring buffer write failed with error %d, %d bytes lost", result, size);
+        printf("log_async: Ring buffer write failed with error %d, %d bytes lost", result, size);
         return;
     }
     
@@ -182,5 +182,5 @@ void log_async_write_deinit(void) {
     // Mark as uninitialized
     _tslog_initialized = false;
     
-    log_info("log_async: Deinitialized, %lu bytes lost total", (unsigned long)_tslog_lost_count);
+    printf("log_async: Deinitialized, %lu bytes lost total", (unsigned long)_tslog_lost_count);
 }
