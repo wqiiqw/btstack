@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 BlueKitchen GmbH
+ * Copyright (C) 2014 Blue Kitchen GmbH
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -41,6 +41,7 @@
  *  Dump HCI trace via async UART in H4 format
  */
 
+#include "bluetooth.h"          // ← Added for H4 packet type definitions
 #include "hci_dump.h"
 #include "btstack_config.h"
 #include "hci.h"
@@ -48,13 +49,6 @@
 #include "log_async_write.h"
 #include <stdio.h>
 #include <string.h>
-
-// H4 packet type indicators
-#define H4_CMD      0x01    // HCI Command
-#define H4_ACL      0x02    // ACL Data  
-#define H4_SCO      0x03    // SCO Data
-#define H4_EVT      0x04    // HCI Event
-#define H4_ISO      0x05    // ISO Data
 
 // Buffer for H4 packet formatting
 #define H4_PACKET_BUFFER_SIZE 1024
@@ -76,10 +70,10 @@ static void hci_dump_epm_embedded_async_uart_packet(uint8_t packet_type, uint8_t
     
     switch (packet_type){
         case HCI_COMMAND_DATA_PACKET:
-            h4_type = H4_CMD;
+            h4_type = HCI_COMMAND_DATA_PACKET;    // 0x01
             break;
         case HCI_EVENT_PACKET:
-            h4_type = H4_EVT;
+            h4_type = HCI_EVENT_PACKET;           // 0x04
             break;
         case HCI_ACL_DATA_PACKET:
 #ifdef HCI_DUMP_STDOUT_MAX_SIZE_ACL
@@ -87,7 +81,7 @@ static void hci_dump_epm_embedded_async_uart_packet(uint8_t packet_type, uint8_t
                 return;
             }
 #endif
-            h4_type = H4_ACL;
+            h4_type = HCI_ACL_DATA_PACKET;        // 0x02
             break;
         case HCI_SCO_DATA_PACKET:
 #ifdef HCI_DUMP_STDOUT_MAX_SIZE_SCO
@@ -95,7 +89,7 @@ static void hci_dump_epm_embedded_async_uart_packet(uint8_t packet_type, uint8_t
                 return;
             }
 #endif
-            h4_type = H4_SCO;
+            h4_type = HCI_SCO_DATA_PACKET;        // 0x03
             break;
         case HCI_ISO_DATA_PACKET:
 #ifdef HCI_DUMP_STDOUT_MAX_SIZE_ISO
@@ -103,7 +97,7 @@ static void hci_dump_epm_embedded_async_uart_packet(uint8_t packet_type, uint8_t
                 return;
             }
 #endif
-            h4_type = H4_ISO;
+            h4_type = HCI_ISO_DATA_PACKET;        // 0x05
             break;
         case LOG_MESSAGE_PACKET:
             // Send log messages as text with special marker
