@@ -22,7 +22,7 @@ static btstack_ring_buffer_t _tslog_ringbuffer;
 static uint32_t _tslog_storage[TSLOG_STORAGE_SIZE/4];
 
 // Statistics and state
-static uint32_t _tslog_lost_count = 0;
+volatile uint32_t _tslog_lost_count = 0;
 static bool _tslog_initialized = false;
 
 // BTstack timer for periodic flush
@@ -197,24 +197,6 @@ void log_async_write(const void * data, int size) {
 // Optional: Get statistics
 uint32_t log_async_get_lost_count(void) {
     return _tslog_lost_count;
-}
-
-uint32_t log_async_get_buffer_usage(void) {
-    if (!_tslog_initialized) {
-        return 0;
-    }
-    return btstack_ring_buffer_bytes_available(&_tslog_ringbuffer);
-}
-
-uint32_t log_async_get_buffer_free(void) {
-    if (!_tslog_initialized) {
-        return 0;
-    }
-    return btstack_ring_buffer_bytes_free(&_tslog_ringbuffer);
-}
-
-void log_async_reset_stats(void) {
-    _tslog_lost_count = 0;
 }
 
 // Optional cleanup function
