@@ -5,7 +5,8 @@
 #include "btstack_run_loop.h"
 #include "btstack_debug.h"
 #include "log_async_write.h"
-#include "com30_uart.h"
+#include "btstack_uart.h"
+#include "btstack_uart_block.h"
 
 #define TSLOG_STORAGE_SIZE                       4096
 #define TSLOG_FLUSH_CHUNK_SIZE                   256   // Max bytes to send per task iteration
@@ -33,72 +34,52 @@ static bool _tslog_flush_active = false;
 static void log_async_flush_task(btstack_timer_source_t *ts);
 static void log_async_schedule_flush(void);
 
+// UART driver instance
+static const btstack_uart_block_t * uart_driver = NULL;
+
 // Flush task - runs in BTstack main loop context
 static void log_async_flush_task(btstack_timer_source_t *ts) {
     UNUSED(ts);
-    
+
     if (!_tslog_initialized) {
         _tslog_flush_active = false;
         return;
     }
-    
-    // Check if COM30 is ready for transmission
-    if (!com30_uart_is_open()) {
-        // COM30 not ready, reschedule for later with delay
-        printf("log_async: COM30 not ready, rescheduling\n");
-        btstack_run_loop_set_timer(&_tslog_flush_timer, TSLOG_FLUSH_INTERVAL_MS);
-        btstack_run_loop_set_timer_handler(&_tslog_flush_timer, log_async_flush_task);
-        btstack_run_loop_add_timer(&_tslog_flush_timer);
-        return; // Keep _tslog_flush_active = true
-    }
-    
+
+    // UART readiness: BTstack UART block driver does not provide is_open().
+    // Assume UART is ready after successful init/open.
+
     // Get available data in ring buffer
     uint32_t bytes_available = btstack_ring_buffer_bytes_available(&_tslog_ringbuffer);
     if (bytes_available == 0) {
-        // No data to flush, mark flush as inactive
         _tslog_flush_active = false;
         printf("log_async: No data available, flush inactive\n");
         return;
     }
-    
+
     printf("log_async: Flushing %lu bytes available\n", (unsigned long)bytes_available);
-    
-    // Determine how much to send this iteration
-    uint32_t bytes_to_send = (bytes_available > TSLOG_FLUSH_CHUNK_SIZE) ? 
-                             TSLOG_FLUSH_CHUNK_SIZE : bytes_available;
-    
-    // Allocate temporary buffer on stack
+
+    uint32_t bytes_to_send = (bytes_available > TSLOG_FLUSH_CHUNK_SIZE) ? TSLOG_FLUSH_CHUNK_SIZE : bytes_available;
     uint8_t flush_buffer[TSLOG_FLUSH_CHUNK_SIZE];
-    
-    // Read data from ring buffer
     uint32_t bytes_read = 0;
     btstack_ring_buffer_read(&_tslog_ringbuffer, flush_buffer, bytes_to_send, &bytes_read);
-    
+
     printf("log_async: Read %lu bytes from ring buffer\n", (unsigned long)bytes_read);
-    
+
     if (bytes_read > 0) {
-        // Send to COM30 (non-blocking)
-        int result = com30_uart_send(flush_buffer, (uint16_t)bytes_read);
-        if (result != 0) {
-            // Send failed - count as lost data
-            _tslog_lost_count += bytes_read;
-            printf("log_async: COM30 send failed, %lu bytes lost\n", (unsigned long)bytes_read);
-        } else {
-            printf("log_async: Successfully sent %lu bytes to COM30\n", (unsigned long)bytes_read);
-        }
+        // Send to UART (blocking)
+        // btstack_uart_block_windows send_block returns void, no error code
+        uart_driver->send_block(flush_buffer, (uint16_t)bytes_read);
+        printf("log_async: Sent %lu bytes to UART\n", (unsigned long)bytes_read);
     }
-    
-    // CRITICAL FIX: Always check if more data needs to be flushed
+
     bytes_available = btstack_ring_buffer_bytes_available(&_tslog_ringbuffer);
     if (bytes_available > 0) {
-        // More data available, reschedule with small delay to prevent busy loop
         printf("log_async: %lu bytes remaining, rescheduling\n", (unsigned long)bytes_available);
         btstack_run_loop_set_timer(&_tslog_flush_timer, TSLOG_FLUSH_INTERVAL_MS);
         btstack_run_loop_set_timer_handler(&_tslog_flush_timer, log_async_flush_task);
         btstack_run_loop_add_timer(&_tslog_flush_timer);
-        // Keep _tslog_flush_active = true
     } else {
-        // All data flushed, mark flush as inactive
         _tslog_flush_active = false;
         printf("log_async: All data flushed, flush inactive\n");
     }
@@ -128,40 +109,34 @@ static void log_async_schedule_flush(void) {
 // Public API implementation
 void log_async_write_init(void) {
     if (_tslog_initialized) {
-        return; // Already initialized
+        return;
     }
-    
-    // Initialize ring buffer
+
     btstack_ring_buffer_init(&_tslog_ringbuffer, (uint8_t*)_tslog_storage, TSLOG_STORAGE_SIZE);
-    
-    // Reset statistics
     _tslog_lost_count = 0;
     _tslog_flush_active = false;
-    
-    // Mark as initialized
     _tslog_initialized = true;
-    
+
     printf("log_async: Initialized with %d byte ring buffer\n", TSLOG_STORAGE_SIZE);
 
-    // Initialize COM30 UART (for your application)
-    com30_uart_config_t com30_config = {
-        .port_name = "COM8",
+    // Use BTstack UART block driver for Windows
+    uart_driver = btstack_uart_block_windows_instance();
+    btstack_uart_config_t uart_config = {
         .baudrate = 500000,
         .flowcontrol = 1,
+        .device_name = "COM8",
         .parity = 0
     };
-    
-    if (com30_uart_init(&com30_config) != 0) {
-        printf("Failed to initialize COM30 UART\n");
+
+    if (uart_driver->init(&uart_config) != 0) {
+        printf("Failed to initialize UART\n");
         return;
     }
-    
-    if (com30_uart_open() != 0) {
-        printf("Failed to open COM30 UART\n");
+    if (uart_driver->open() != 0) {
+        printf("Failed to open UART\n");
         return;
     }
-    
-    printf("BTstack with %s UART starting...\n", com30_config.port_name);
+    printf("BTstack with %s UART starting...\n", uart_config.device_name);
 }
 
 void log_async_write(const void * data, int size) {
@@ -215,11 +190,11 @@ void log_async_write_deinit(void) {
     log_async_flush_task(&_tslog_flush_timer);
 
     // Cleanup
-    printf("log_async: Closing COM30 UART\n");
-    com30_uart_close();
+    printf("log_async: Closing UART\n");
+    if (uart_driver && uart_driver->close) {
+        uart_driver->close();
+    }
 
-    // Mark as uninitialized
     _tslog_initialized = false;
-    
     printf("log_async: Deinitialized, %lu bytes lost total\n", (unsigned long)_tslog_lost_count);
 }
