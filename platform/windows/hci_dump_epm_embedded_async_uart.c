@@ -50,8 +50,8 @@
 #include <stdio.h>
 #include <string.h>
 
-//#define _EPM_HCI_DUMP_FORMAT 
-#define _H4_HCI_DUMP_FORMAT
+#define _EPM_HCI_DUMP_FORMAT 
+//#define _H4_HCI_DUMP_FORMAT
 
 #define CRC8_POLY 0x07  // CRC-8-ATM polynomial: x^8 + x^2 + x + 1
 
@@ -131,7 +131,7 @@ static void hci_dump_epm_embedded_async_uart_log_packet(uint8_t packet_type, uin
     // EPM HCI Log Data Format:
     // [SYNC_MAGIC][TYPE][LEN][PAYLOAD][CRC8]
     // 0x8EA5       0xC5  LEN  PAYLOAD  CRC8
-    // 
+    //  LEN = payload size + 1 (for CRC8)
     // PAYLOAD: [uint8_t packet_type][uint8_t in][uint8_t *packet][uint16_t len]
     
     // Calculate total payload size: packet_type(1) + in(1) + packet(len) + len(2)
@@ -148,16 +148,16 @@ static void hci_dump_epm_embedded_async_uart_log_packet(uint8_t packet_type, uin
     uint8_t * epm_packet = h4_packet_buffer;
     uint16_t offset = 0;
     
-    // SYNC_MAGIC (0x8EA5 - little endian)
-    epm_packet[offset++] = 0xA5;
+    // SYNC_MAGIC (0xA58E - little endian)
     epm_packet[offset++] = 0x8E;
+    epm_packet[offset++] = 0xA5;
     
     // TYPE (0xC5)
     epm_packet[offset++] = 0xC5;
     
     // LEN (payload size - little endian)
-    epm_packet[offset++] = payload_size & 0xFF;
-    epm_packet[offset++] = (payload_size >> 8) & 0xFF;
+    epm_packet[offset++] = (payload_size + 1) & 0xFF; // +1 for CRC8
+    epm_packet[offset++] = ((payload_size + 1) >> 8) & 0xFF; // +1 for CRC8
     
     // Mark start of PAYLOAD for CRC calculation
     uint16_t payload_start = offset;
@@ -185,7 +185,7 @@ static void hci_dump_epm_embedded_async_uart_log_packet(uint8_t packet_type, uin
 #if defined(_H4_HCI_DUMP_FORMAT)
 int _log_message = 0;
 #elif defined(_EPM_HCI_DUMP_FORMAT)
-int _log_message = 1; //1
+int _log_message = 0; //1
 #else
 int _log_message = 0; 
 #endif
