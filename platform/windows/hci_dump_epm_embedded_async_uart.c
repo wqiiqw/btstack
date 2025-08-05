@@ -82,7 +82,7 @@ static char log_message_buffer[HCI_DUMP_MAX_MESSAGE_LEN];
 
 // Format and send HCI packet in H4 format
 // Enhanced version that preserves direction information
-static void hci_dump_h4_hci_async_uart_packet(uint8_t packet_type, uint8_t in, uint8_t * packet, uint16_t len){
+static void hci_dump_h4_hci_async_uart_log_packet(uint8_t packet_type, uint8_t in, uint8_t * packet, uint16_t len){
     // Skip packets that are too large (reserve 1 byte for H4 type only)
     if (len + 1 > H4_PACKET_BUFFER_SIZE) {
         return;
@@ -137,7 +137,7 @@ static void hci_dump_h4_hci_async_uart_packet(uint8_t packet_type, uint8_t in, u
     if (!should_forward) {
         return;
     }
-    
+   
     // Build Standard H4 packet: [H4_TYPE][HCI_PACKET_DATA] (Wireshark compatible)
     h4_packet_buffer[0] = h4_type;
     memcpy(&h4_packet_buffer[1], packet, len);
@@ -146,80 +146,65 @@ static void hci_dump_h4_hci_async_uart_packet(uint8_t packet_type, uint8_t in, u
     log_async_write(h4_packet_buffer, len + 1);
 }
 
-// Format and send HCI packet in H4 format
-// Enhanced version that preserves direction information
-static void hci_dump_epm_embedded_async_uart_packet(uint8_t packet_type, uint8_t in, uint8_t * packet, uint16_t len){
-    // Skip packets that are too large (reserve 1 byte for H4 type only)
-    if (len + 1 > H4_PACKET_BUFFER_SIZE) {
+static void hci_dump_epm_embedded_async_uart_log_packet(uint8_t packet_type, uint8_t in, uint8_t * packet, uint16_t len){
+    // EPM HCI Log Data Format:
+    // [SYNC_MAGIC][TYPE][LEN][PAYLOAD][CRC8]
+    // 0x8EA5       0xC5  LEN  PAYLOAD  CRC8
+    // 
+    // PAYLOAD: [uint8_t packet_type][uint8_t in][uint8_t *packet][uint16_t len]
+    
+    // Calculate total payload size: packet_type(1) + in(1) + packet(len) + len(2)
+    uint16_t payload_size = 1 + 1 + len + 2;
+    
+    // Calculate total EPM packet size: SYNC(2) + TYPE(1) + LEN(2) + PAYLOAD + CRC8(1)
+    uint16_t total_size = 2 + 1 + 2 + payload_size + 1;
+    
+    // Skip packets that are too large
+    if (total_size > H4_PACKET_BUFFER_SIZE) {
         return;
     }
     
-    // Convert BTstack packet type to H4 format
-    uint8_t h4_type;
-    bool should_forward = true;
+    uint8_t * epm_packet = h4_packet_buffer;
+    uint16_t offset = 0;
     
-    switch (packet_type){
-        case HCI_COMMAND_DATA_PACKET:
-            h4_type = HCI_COMMAND_DATA_PACKET;    // 0x01
-            break;
-        case HCI_EVENT_PACKET:
-            h4_type = HCI_EVENT_PACKET;           // 0x04
-            break;
-        case HCI_ACL_DATA_PACKET:
-#ifdef HCI_DUMP_STDOUT_MAX_SIZE_ACL
-            if (len > HCI_DUMP_STDOUT_MAX_SIZE_ACL){
-                return;
-            }
-#endif
-            h4_type = HCI_ACL_DATA_PACKET;        // 0x02
-            break;
-        case HCI_SCO_DATA_PACKET:
-#ifdef HCI_DUMP_STDOUT_MAX_SIZE_SCO
-            if (len > HCI_DUMP_STDOUT_MAX_SIZE_SCO){
-                return;
-            }
-#endif
-            h4_type = HCI_SCO_DATA_PACKET;        // 0x03
-            break;
-        case HCI_ISO_DATA_PACKET:
-#ifdef HCI_DUMP_STDOUT_MAX_SIZE_ISO
-            if (len > HCI_DUMP_STDOUT_MAX_SIZE_ISO){
-                return;
-            }
-#endif
-            h4_type = HCI_ISO_DATA_PACKET;        // 0x05
-            break;
-        case LOG_MESSAGE_PACKET:
-            // Send log messages as text with special marker
-            static const char log_prefix[] = "LOG: ";
-            log_async_write(log_prefix, sizeof(log_prefix) - 1);
-            log_async_write(packet, len);
-            log_async_write("\n", 1);
-            return;
-        default:
-            return;
-    }
+    // SYNC_MAGIC (0x8EA5 - little endian)
+    epm_packet[offset++] = 0xA5;
+    epm_packet[offset++] = 0x8E;
     
-    if (!should_forward) {
-        return;
-    }
+    // TYPE (0xC5)
+    epm_packet[offset++] = 0xC5;
     
-    // Build Standard H4 packet: [H4_TYPE][HCI_PACKET_DATA] (Wireshark compatible)
-    h4_packet_buffer[0] = h4_type;
-    memcpy(&h4_packet_buffer[1], packet, len);
+    // LEN (payload size - little endian)
+    epm_packet[offset++] = payload_size & 0xFF;
+    epm_packet[offset++] = (payload_size >> 8) & 0xFF;
     
-    // Send standard H4 packet via async UART
-    log_async_write(h4_packet_buffer, len + 1);
-}
-
-static void hci_dump_epm_embedded_async_uart_log_packet(uint8_t packet_type, uint8_t in, uint8_t *packet, uint16_t len) {
-    hci_dump_epm_embedded_async_uart_packet(packet_type, in, packet, len);
+    // Mark start of PAYLOAD for CRC calculation
+    uint16_t payload_start = offset;
+    
+    // PAYLOAD
+    // - packet_type
+    epm_packet[offset++] = packet_type;
+    // - in (direction)
+    epm_packet[offset++] = in;
+    // - packet data
+    memcpy(&epm_packet[offset], packet, len);
+    offset += len;
+    // - len (little endian)
+    epm_packet[offset++] = len & 0xFF;
+    epm_packet[offset++] = (len >> 8) & 0xFF;
+    
+    // Calculate CRC8 over PAYLOAD only (excluding SYNC_MAGIC, TYPE, and LEN)
+    uint8_t crc = _crc8(&epm_packet[payload_start], payload_size);
+    epm_packet[offset++] = crc;
+    
+    // Send EPM packet via async UART
+    log_async_write(epm_packet, offset);
 }
 
 #if defined(_H4_HCI_DUMP_FORMAT)
 int _log_message = 0;
 #elif defined(_EPM_HCI_DUMP_FORMAT)
-int _log_message = 1;
+int _log_message = 1; //1
 #else
 int _log_message = 0; 
 #endif
@@ -230,9 +215,13 @@ static void hci_dump_epm_embedded_async_uart_log_message(int log_level, const ch
         // Avoid logging if not enabled
         return;
     }
-    int len = vsnprintf(log_message_buffer, sizeof(log_message_buffer), format, argptr);
-    if (len > 0 && len < (int)sizeof(log_message_buffer)) {
-        hci_dump_epm_embedded_async_uart_log_packet(LOG_MESSAGE_PACKET, 0, (uint8_t*) log_message_buffer, len);
+
+    int len = vsnprintf(log_message_buffer, sizeof(log_message_buffer) - 2, format, argptr); // Reserve space for '\r\n'
+    if (len > 0 && len < (int)(sizeof(log_message_buffer) - 2)) {
+        log_message_buffer[len] = '\r';      // Add carriage return
+        log_message_buffer[len + 1] = '\n';  // Add newline
+        log_message_buffer[len + 2] = '\0';  // Null terminate the string
+        log_async_write(log_message_buffer, len + 2);  // Include '\r\n' in the length
     }
 }
 
@@ -242,7 +231,7 @@ const hci_dump_t * hci_dump_epm_embedded_async_uart_get_instance(void){
         NULL,
         // void (*log_packet)(uint8_t packet_type, uint8_t in, uint8_t *packet, uint16_t len);
 #if defined(_H4_HCI_DUMP_FORMAT)
-        &hci_dump_h4_hci_async_uart_packet,
+        &hci_dump_h4_hci_async_uart_log_packet,
 #else
         &hci_dump_epm_embedded_async_uart_log_packet,
 #endif
