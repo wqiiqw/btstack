@@ -50,11 +50,101 @@
 #include <stdio.h>
 #include <string.h>
 
+//#define _EPM_HCI_DUMP_FORMAT 
+#define _H4_HCI_DUMP_FORMAT
+
+#define CRC8_POLY 0x07  // CRC-8-ATM polynomial: x^8 + x^2 + x + 1
+
+static uint8_t _crc8(const uint8_t *buf, size_t size)
+{
+    uint8_t crc = 0x00;
+
+    for (size_t i = 0; i < size; ++i) {
+        crc ^= buf[i];
+        for (uint8_t bit = 0; bit < 8; ++bit) {
+            if (crc & 0x80) {
+                crc = (crc << 1) ^ CRC8_POLY;
+            } else {
+                crc <<= 1;
+            }
+        }
+    }
+
+    return crc;
+}
+
+
 // Buffer for H4 packet formatting
 #define H4_PACKET_BUFFER_SIZE 1024
 static uint8_t h4_packet_buffer[H4_PACKET_BUFFER_SIZE];
 
 static char log_message_buffer[HCI_DUMP_MAX_MESSAGE_LEN];
+
+// Format and send HCI packet in H4 format
+// Enhanced version that preserves direction information
+static void hci_dump_h4_hci_async_uart_packet(uint8_t packet_type, uint8_t in, uint8_t * packet, uint16_t len){
+    // Skip packets that are too large (reserve 1 byte for H4 type only)
+    if (len + 1 > H4_PACKET_BUFFER_SIZE) {
+        return;
+    }
+    
+    // Convert BTstack packet type to H4 format
+    uint8_t h4_type;
+    bool should_forward = true;
+    
+    switch (packet_type){
+        case HCI_COMMAND_DATA_PACKET:
+            h4_type = HCI_COMMAND_DATA_PACKET;    // 0x01
+            break;
+        case HCI_EVENT_PACKET:
+            h4_type = HCI_EVENT_PACKET;           // 0x04
+            break;
+        case HCI_ACL_DATA_PACKET:
+#ifdef HCI_DUMP_STDOUT_MAX_SIZE_ACL
+            if (len > HCI_DUMP_STDOUT_MAX_SIZE_ACL){
+                return;
+            }
+#endif
+            h4_type = HCI_ACL_DATA_PACKET;        // 0x02
+            break;
+        case HCI_SCO_DATA_PACKET:
+#ifdef HCI_DUMP_STDOUT_MAX_SIZE_SCO
+            if (len > HCI_DUMP_STDOUT_MAX_SIZE_SCO){
+                return;
+            }
+#endif
+            h4_type = HCI_SCO_DATA_PACKET;        // 0x03
+            break;
+        case HCI_ISO_DATA_PACKET:
+#ifdef HCI_DUMP_STDOUT_MAX_SIZE_ISO
+            if (len > HCI_DUMP_STDOUT_MAX_SIZE_ISO){
+                return;
+            }
+#endif
+            h4_type = HCI_ISO_DATA_PACKET;        // 0x05
+            break;
+        case LOG_MESSAGE_PACKET:
+            // Send log messages as text with special marker
+            static const char log_prefix[] = "LOG: ";
+            log_async_write(log_prefix, sizeof(log_prefix) - 1);
+            log_async_write(packet, len);
+            log_async_write("\n", 1);
+            return;
+        default:
+            return;
+    }
+    
+    if (!should_forward) {
+        return;
+    }
+    
+    // Build Standard H4 packet: [H4_TYPE][HCI_PACKET_DATA] (Wireshark compatible)
+    h4_packet_buffer[0] = h4_type;
+    memcpy(&h4_packet_buffer[1], packet, len);
+    
+    // Send standard H4 packet via async UART
+    log_async_write(h4_packet_buffer, len + 1);
+}
 
 // Format and send HCI packet in H4 format
 // Enhanced version that preserves direction information
@@ -126,7 +216,13 @@ static void hci_dump_epm_embedded_async_uart_log_packet(uint8_t packet_type, uin
     hci_dump_epm_embedded_async_uart_packet(packet_type, in, packet, len);
 }
 
+#if defined(_H4_HCI_DUMP_FORMAT)
 int _log_message = 0;
+#elif defined(_EPM_HCI_DUMP_FORMAT)
+int _log_message = 1;
+#else
+int _log_message = 0; 
+#endif
 static void hci_dump_epm_embedded_async_uart_log_message(int log_level, const char * format, va_list argptr){
     UNUSED(log_level);
 
@@ -145,7 +241,11 @@ const hci_dump_t * hci_dump_epm_embedded_async_uart_get_instance(void){
         // void (*reset)(void);
         NULL,
         // void (*log_packet)(uint8_t packet_type, uint8_t in, uint8_t *packet, uint16_t len);
+#if defined(_H4_HCI_DUMP_FORMAT)
+        &hci_dump_h4_hci_async_uart_packet,
+#else
         &hci_dump_epm_embedded_async_uart_log_packet,
+#endif
         // void (*log_message)(int log_level, const char * format, va_list argptr);
         &hci_dump_epm_embedded_async_uart_log_message,
     };
