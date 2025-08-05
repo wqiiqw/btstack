@@ -88,24 +88,17 @@ static void hci_dump_h4_hci_async_uart_log_packet(uint8_t packet_type, uint8_t i
         return;
     }
     
-    // Convert BTstack packet type to H4 format
-    uint8_t h4_type;
-    bool should_forward = true;
-    
     switch (packet_type){
         case HCI_COMMAND_DATA_PACKET:
-            h4_type = HCI_COMMAND_DATA_PACKET;    // 0x01
-            break;
         case HCI_EVENT_PACKET:
-            h4_type = HCI_EVENT_PACKET;           // 0x04
             break;
+
         case HCI_ACL_DATA_PACKET:
 #ifdef HCI_DUMP_STDOUT_MAX_SIZE_ACL
             if (len > HCI_DUMP_STDOUT_MAX_SIZE_ACL){
                 return;
             }
 #endif
-            h4_type = HCI_ACL_DATA_PACKET;        // 0x02
             break;
         case HCI_SCO_DATA_PACKET:
 #ifdef HCI_DUMP_STDOUT_MAX_SIZE_SCO
@@ -113,7 +106,6 @@ static void hci_dump_h4_hci_async_uart_log_packet(uint8_t packet_type, uint8_t i
                 return;
             }
 #endif
-            h4_type = HCI_SCO_DATA_PACKET;        // 0x03
             break;
         case HCI_ISO_DATA_PACKET:
 #ifdef HCI_DUMP_STDOUT_MAX_SIZE_ISO
@@ -121,25 +113,14 @@ static void hci_dump_h4_hci_async_uart_log_packet(uint8_t packet_type, uint8_t i
                 return;
             }
 #endif
-            h4_type = HCI_ISO_DATA_PACKET;        // 0x05
             break;
         case LOG_MESSAGE_PACKET:
-            // Send log messages as text with special marker
-            static const char log_prefix[] = "LOG: ";
-            log_async_write(log_prefix, sizeof(log_prefix) - 1);
-            log_async_write(packet, len);
-            log_async_write("\n", 1);
-            return;
         default:
             return;
     }
     
-    if (!should_forward) {
-        return;
-    }
-   
     // Build Standard H4 packet: [H4_TYPE][HCI_PACKET_DATA] (Wireshark compatible)
-    h4_packet_buffer[0] = h4_type;
+    h4_packet_buffer[0] = packet_type;
     memcpy(&h4_packet_buffer[1], packet, len);
     
     // Send standard H4 packet via async UART
