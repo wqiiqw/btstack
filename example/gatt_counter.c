@@ -281,6 +281,7 @@ static int att_write_callback(hci_con_handle_t connection_handle, uint16_t att_h
 int btstack_main(void);
 int btstack_main(void)
 {
+    log_info("Hello World! This is the GATT Counter example.");
     le_counter_setup();
 
     // turn on!

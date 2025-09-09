@@ -74,9 +74,9 @@ static void local_version_information_handler(uint8_t * packet);
 
 static hci_transport_config_uart_t config = {
         HCI_TRANSPORT_CONFIG_UART,
-        115200,
+        500000, //115200
         0,  // main baudrate
-        1,  // flow control
+        0,  // flow control
         NULL,
 };
 
@@ -239,7 +239,7 @@ int main(int argc, const char * argv[]){
     printf("Packet Log: %s\n", pklg_path);
 
     // pick serial port
-    config.device_name = "\\\\.\\COM7";
+    config.device_name = "\\\\.\\COM15";  //"\\\\.\\COM7";
 
     // accept path from command line
     if (argc >= 3 && strcmp(argv[1], "-u") == 0){
