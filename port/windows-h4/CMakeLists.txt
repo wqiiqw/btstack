@@ -201,3 +201,34 @@ foreach(EXAMPLE ${EXAMPLES})
 	add_executable(${EXAMPLE} ${SOURCES_EXAMPLE})
 	target_link_libraries(${EXAMPLE} btstack)
 endforeach(EXAMPLE)
+
+# Release build configuration
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    # Set release-specific optimizations
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
+endif()
+
+# Create release zip target
+add_custom_target(release_zip
+    COMMAND ${CMAKE_COMMAND} -E echo "Creating release zip..."
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/release
+    COMMAND ${CMAKE_COMMAND} -E echo "Copying release executables..."
+    DEPENDS ${EXAMPLES}
+)
+
+# Copy each example executable to release directory
+foreach(EXAMPLE ${EXAMPLES})
+    add_custom_command(TARGET release_zip POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy 
+            $<TARGET_FILE:${EXAMPLE}>
+            ${CMAKE_BINARY_DIR}/release/${EXAMPLE}.exe
+        COMMENT "Copying ${EXAMPLE}.exe to release directory"
+    )
+endforeach()
+
+# Create the zip file (Windows specific using PowerShell)
+add_custom_command(TARGET release_zip POST_BUILD
+    COMMAND powershell -Command "Compress-Archive -Path '${CMAKE_BINARY_DIR}/release/*' -DestinationPath '${CMAKE_BINARY_DIR}/btstack-windows-h4-zephyr-release.zip' -Force"
+    COMMENT "Creating release zip file"
+)

@@ -41,6 +41,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <windows.h>
 
 #include "btstack_config.h"
 
@@ -71,13 +72,15 @@
 
 int btstack_main(int argc, const char * argv[]);
 static void local_version_information_handler(uint8_t * packet);
+static void show_usage(const char* program_name);
+static int check_serial_port(const char* device_name);
 
 static hci_transport_config_uart_t config = {
         HCI_TRANSPORT_CONFIG_UART,
-        500000, //115200
-        0,  // main baudrate
-        0,  // flow control
-        NULL,
+        500000, // initial baudrate
+        0,      // main baudrate
+        0,      // flow control
+        NULL,   // device name
 };
 
 int is_bcm;
@@ -224,6 +227,27 @@ static void local_version_information_handler(uint8_t * packet){
     }
 }
 
+static int check_serial_port(const char* device_name) {
+    HANDLE hSerial = CreateFileA(device_name, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hSerial == INVALID_HANDLE_VALUE) {
+        return 0; // failed to open
+    }
+    CloseHandle(hSerial);
+    return 1; // success
+}
+
+static void show_usage(const char* program_name) {
+    printf("Usage: %s [options]\n", program_name);
+    printf("Options:\n");
+    printf("  -p, --port <device>     Serial port device (default: COM15)\n");
+    printf("  -b, --baudrate <rate>   Baudrate (default: 500000)\n");
+    printf("  -f, --flowcontrol <0|1> Flow control: 0=off, 1=on (default: 0)\n");
+    printf("  -h, --help              Show this help message\n");
+    printf("\nExamples:\n");
+    printf("  %s -p COM7 -b 921600 -f 1\n", program_name);
+    printf("  %s --port COM3 --baudrate 115200\n", program_name);
+}
+
 int main(int argc, const char * argv[]){
     printf("BTstack on windows booting up\n");
 
@@ -238,16 +262,66 @@ int main(int argc, const char * argv[]){
     hci_dump_init(hci_dump_impl);
     printf("Packet Log: %s\n", pklg_path);
 
-    // pick serial port
-    config.device_name = "\\\\.\\COM15";  //"\\\\.\\COM7";
+    // set default serial port
+    config.device_name = "\\\\.\\COM15";
 
-    // accept path from command line
-    if (argc >= 3 && strcmp(argv[1], "-u") == 0){
-        config.device_name = argv[2];
-        argc -= 2;
-        memmove((void *) &argv[1], &argv[3], (argc-1) * sizeof(char *));
+    // parse command line arguments
+    int i = 1;
+    while (i < argc) {
+        if ((strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--port") == 0) && i + 1 < argc) {
+            config.device_name = argv[i + 1];
+            i += 2;
+        } else if ((strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--baudrate") == 0) && i + 1 < argc) {
+            config.baudrate_init = atoi(argv[i + 1]);
+            if (config.baudrate_init <= 0) {
+                printf("Error: Invalid baudrate '%s'\n", argv[i + 1]);
+                show_usage(argv[0]);
+                return 1;
+            }
+            i += 2;
+        } else if ((strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--flowcontrol") == 0) && i + 1 < argc) {
+            config.flowcontrol = atoi(argv[i + 1]);
+            if (config.flowcontrol != 0 && config.flowcontrol != 1) {
+                printf("Error: Flow control must be 0 or 1, got '%s'\n", argv[i + 1]);
+                show_usage(argv[0]);
+                return 1;
+            }
+            i += 2;
+        } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            show_usage(argv[0]);
+            return 0;
+        } else if (strcmp(argv[i], "-u") == 0 && i + 1 < argc) {
+            // legacy support for -u option
+            config.device_name = argv[i + 1];
+            i += 2;
+        } else {
+            // pass remaining args to btstack_main
+            break;
+        }
     }
+
+    // adjust argc/argv for btstack_main
+    int remaining_argc = argc - i + 1;
+    const char** remaining_argv = malloc(remaining_argc * sizeof(char*));
+    remaining_argv[0] = argv[0];
+    for (int j = 1; j < remaining_argc; j++) {
+        remaining_argv[j] = argv[i + j - 1];
+    }
+
     printf("H4 device: %s\n", config.device_name);
+    printf("Baudrate: %u\n", config.baudrate_init);
+    printf("Flow control: %s\n", config.flowcontrol ? "enabled" : "disabled");
+
+    // check if COM port can be opened
+    if (!check_serial_port(config.device_name)) {
+        printf("Error: Cannot open COM port '%s'\n", config.device_name);
+        printf("Please check:\n");
+        printf("  - The COM port exists and is available\n");
+        printf("  - No other application is using the port\n");
+        printf("  - You have permission to access the port\n");
+        free(remaining_argv);
+        return 1;
+    }
 
     // init HCI
     const btstack_uart_block_t * uart_driver = btstack_uart_block_windows_instance();
@@ -268,10 +342,12 @@ int main(int argc, const char * argv[]){
     btstack_stdin_window_register_ctrl_c_callback(&trigger_shutdown);
 
     // setup app
-    btstack_main(argc, argv);
+    btstack_main(remaining_argc, remaining_argv);
 
     // go
     btstack_run_loop_execute();
 
+    // cleanup
+    free(remaining_argv);
     return 0;
 }
