@@ -37,7 +37,7 @@
 
 #define BTSTACK_FILE__ "le_audio_broadcast_source.c"
 
-#define COUNT_MODE
+//#define COUNT_MODE
 /*
  * LE Audio Broadcast Source
  */

@@ -70,7 +70,6 @@
 #include "hci_transport_h4.h"
 
 int btstack_main(int argc, const char * argv[]);
-
 #define TLV_DB_PATH_PREFIX "/tmp/btstack_"
 #define TLV_DB_PATH_POSTFIX ".tlv"
 static char tlv_db_path[100];
@@ -82,7 +81,7 @@ static hci_transport_config_uart_t config = {
     HCI_TRANSPORT_CONFIG_UART,
     500000, //1000000 115200 500000
     0,  // main baudrate
-    1,  // flow control
+    0,  // flow control
     NULL,
 };
 
