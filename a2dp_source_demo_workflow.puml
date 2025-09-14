@@ -1,0 +1,122 @@
+@startuml A2DP Source Demo Workflow
+
+!define TIMING
+!theme plain
+
+participant "User/STDIN" as User
+participant "HCI Handler" as HCI
+participant "A2DP Source" as A2DP
+participant "AVRCP Target" as AVRCP_T
+participant "AVRCP Controller" as AVRCP_C
+participant "Audio Timer" as Timer
+participant "SBC Encoder" as SBC
+participant "Remote Device" as Remote
+
+== Initialization ==
+activate HCI
+HCI -> HCI: Register packet handlers
+HCI -> A2DP: Initialize A2DP Source
+HCI -> AVRCP_T: Initialize AVRCP Target
+HCI -> AVRCP_C: Initialize AVRCP Controller
+HCI -> HCI: Create SDP records
+HCI -> HCI: Set discoverable mode
+
+== Device Discovery ==
+alt Manual Scan (Key 'a')
+    User -> HCI: Start scanning
+else Automatic Scan
+    HCI -> HCI: Auto-start scanning
+end
+
+HCI -> Remote: GAP Inquiry
+Remote -> HCI: Inquiry Response
+HCI -> HCI: Filter by CoD (Audio devices)
+HCI -> A2DP: Establish stream connection
+
+== A2DP Connection ==
+A2DP -> Remote: AVDTP Connection Request
+Remote -> A2DP: Connection Response
+A2DP -> A2DP: CONNECTION_ESTABLISHED event
+
+A2DP -> Remote: Get capabilities
+Remote -> A2DP: SBC codec capabilities
+A2DP -> A2DP: CODEC_CONFIGURATION event
+A2DP -> SBC: Configure encoder
+
+A2DP -> Remote: Set configuration
+Remote -> A2DP: Configuration accepted
+A2DP -> A2DP: STREAM_ESTABLISHED event
+
+== AVRCP Connection ==
+A2DP -> AVRCP_T: Auto-connect AVRCP
+AVRCP_T -> Remote: AVRCP Connection
+Remote -> AVRCP_T: Connection Response
+AVRCP_T -> AVRCP_T: CONNECTION_ESTABLISHED event
+AVRCP_T -> Remote: Enable notifications
+AVRCP_C -> Remote: Request volume notifications
+
+== Audio Streaming ==
+User -> A2DP: Start streaming (Key 'x' or 'z')
+A2DP -> Remote: Start stream command
+Remote -> A2DP: Stream started response
+A2DP -> Timer: Start audio timer
+A2DP -> AVRCP_T: Set playback status = PLAYING
+
+loop Audio Streaming Loop
+    Timer -> Timer: 10ms timeout
+    Timer -> SBC: Generate audio samples
+    alt Sine Wave
+        SBC -> SBC: produce_sine_audio()
+    else MOD Player
+        SBC -> SBC: produce_mod_audio()
+    end
+    
+    SBC -> SBC: SBC encode
+    SBC -> A2DP: Check buffer capacity
+    
+    alt Buffer ready to send
+        A2DP -> A2DP: Request CAN_SEND_NOW
+        A2DP -> A2DP: CAN_SEND_NOW event
+        A2DP -> Remote: Send media packet
+    end
+end
+
+== Remote Control ==
+Remote -> AVRCP_T: Play/Pause/Stop command
+AVRCP_T -> A2DP: Control stream
+A2DP -> Timer: Start/Stop timer
+AVRCP_T -> Remote: Command response
+
+Remote -> AVRCP_C: Volume change notification
+AVRCP_C -> AVRCP_C: Volume notification event
+
+== User Commands ==
+User -> A2DP: Manual control (stdin)
+alt Connection Commands
+    User -> A2DP: Connect ('b') / Disconnect ('B')
+    User -> AVRCP_T: AVRCP Connect ('c') / Disconnect ('C')
+else Playback Commands
+    User -> A2DP: Play sine ('x') / Play MOD ('z')
+    User -> A2DP: Pause ('p')
+    User -> A2DP: Reconfigure sample rate ('w'/'e')
+else Volume Commands
+    User -> AVRCP_C: Volume up/down ('t'/'T')
+    User -> AVRCP_C: Set absolute volume ('v'/'V')
+end
+
+== Stream Termination ==
+alt User Initiated
+    User -> A2DP: Disconnect
+else Remote Initiated
+    Remote -> A2DP: Disconnect request
+end
+
+A2DP -> Timer: Stop audio timer
+A2DP -> A2DP: STREAM_RELEASED event
+A2DP -> AVRCP_T: Set playback status = STOPPED
+AVRCP_T -> Remote: Disconnect AVRCP
+A2DP -> Remote: Disconnect A2DP
+
+deactivate HCI
+
+@enduml
