@@ -92,6 +92,7 @@ static bool shutdown_triggered;
 
 int btstack_main(int argc, const char * argv[]);
 static void local_version_information_handler(uint8_t * packet);
+static void show_usage(const char* program_name);
 
 static hci_transport_config_uart_t config = {
     HCI_TRANSPORT_CONFIG_UART,
@@ -214,6 +215,19 @@ static void local_version_information_handler(uint8_t * packet){
     }
 }
 
+static void show_usage(const char* program_name) {
+    printf("Usage: %s [options]\n", program_name);
+    printf("Options:\n");
+    printf("  -u <device>     UART device path (default: /dev/ttyACM1)\n");
+    printf("  -b <baudrate>   UART baudrate (default: 500000)\n");
+    printf("  -f <0|1>        Flow control: 0=disabled, 1=enabled (default: 1)\n");
+    printf("  -d <path>       HCI dump file path (default: /home/happyble/tmp/hci_dump_<app>.btsnoop)\n");
+    printf("  -h              Show this help message\n");
+    printf("\nExamples:\n");
+    printf("  %s -u /dev/ttyUSB0 -b 115200\n", program_name);
+    printf("  %s -u /dev/ttyACM0 -f 0 -d /tmp/my_hci_dump.btsnoop\n", program_name);
+}
+
 int main(int argc, const char * argv[]){
 
 	/// GET STARTED with BTstack ///
@@ -222,26 +236,59 @@ int main(int argc, const char * argv[]){
 
     // pre-select serial device
     config.device_name = "/dev/ttyACM1"; // BL654 with PTS Firmware
-
-    // accept path from command line
-    bool second_device = false;
-    if (argc >= 3 && strcmp(argv[1], "-u") == 0){
-        config.device_name = argv[2];
-        second_device = true;
-        argc -= 2;
-        memmove((void *) &argv[1], &argv[3], (argc-1) * sizeof(char *));
-    }
-    printf("H4 device: %s\n", config.device_name);
-
-    // log into file using HCI_DUMP_BTSNOOP format
-    char *app_name = strndup( argv[0], PATH_MAX );
-    char *base_name = basename( app_name );
-    const char *pklg_postfix = ".btsnoop";
+    
+    // default HCI dump path
     char pklg_path[PATH_MAX] = "/home/happyble/tmp/hci_dump_";
+    bool custom_dump_path = false;
 
-    btstack_strcat( pklg_path, sizeof(pklg_path), base_name );
-    btstack_strcat( pklg_path, sizeof(pklg_path), pklg_postfix );
-    free( app_name );
+    // parse command line arguments
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-u") == 0 && i + 1 < argc) {
+            config.device_name = argv[++i];
+        } else if (strcmp(argv[i], "-b") == 0 && i + 1 < argc) {
+            config.baudrate_init = atoi(argv[++i]);
+            if (config.baudrate_init <= 0) {
+                printf("Error: Invalid baudrate specified\n");
+                show_usage(argv[0]);
+                return 1;
+            }
+        } else if (strcmp(argv[i], "-f") == 0 && i + 1 < argc) {
+            int flow_control = atoi(argv[++i]);
+            if (flow_control != 0 && flow_control != 1) {
+                printf("Error: Flow control must be 0 or 1\n");
+                show_usage(argv[0]);
+                return 1;
+            }
+            config.flowcontrol = flow_control;
+        } else if (strcmp(argv[i], "-d") == 0 && i + 1 < argc) {
+            strncpy(pklg_path, argv[++i], sizeof(pklg_path) - 1);
+            pklg_path[sizeof(pklg_path) - 1] = '\0';
+            custom_dump_path = true;
+        } else if (strcmp(argv[i], "-h") == 0) {
+            show_usage(argv[0]);
+            return 0;
+        } else {
+            printf("Error: Unknown option '%s'\n", argv[i]);
+            show_usage(argv[0]);
+            return 1;
+        }
+    }
+    
+    printf("H4 device: %s\n", config.device_name);
+    printf("Baudrate: %u\n", config.baudrate_init);
+    printf("Flow control: %s\n", config.flowcontrol ? "enabled" : "disabled");
+
+    // setup HCI dump path if not custom
+    if (!custom_dump_path) {
+        char *app_name = strndup(argv[0], PATH_MAX);
+        char *base_name = basename(app_name);
+        const char *pklg_postfix = ".btsnoop";
+        
+        strcpy(pklg_path, "/home/happyble/tmp/hci_dump_");
+        btstack_strcat(pklg_path, sizeof(pklg_path), base_name);
+        btstack_strcat(pklg_path, sizeof(pklg_path), pklg_postfix);
+        free(app_name);
+    }
 
     hci_dump_posix_fs_open(pklg_path, HCI_DUMP_BTSNOOP);
     const hci_dump_t * hci_dump_impl = hci_dump_posix_fs_get_instance();
@@ -267,8 +314,8 @@ int main(int argc, const char * argv[]){
 
     printf("2025/06/27 Debugging on Friday: \n");
 
-    // setup app
-    btstack_main(argc, argv);
+    // setup app (no arguments passed as they're handled here)
+    btstack_main(0, NULL);
 
     // go
     btstack_run_loop_execute();

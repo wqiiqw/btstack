@@ -168,3 +168,25 @@ foreach(EXAMPLE_FILE ${EXAMPLES_C})
 	add_executable(${EXAMPLE} ${SOURCE_FILES} )
 	target_link_libraries(${EXAMPLE} btstack m pthread)
 endforeach(EXAMPLE_FILE)
+
+# Create release package target
+set(RELEASE_NAME "btstack_le_audio_${CMAKE_BUILD_TYPE}")
+add_custom_target(release.tar.gz
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/release
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+        $<TARGET_FILE:le_audio_broadcast_source>
+        $<TARGET_FILE:le_audio_broadcast_sink>
+        $<TARGET_FILE:le_audio_broadcast_assistant>
+        $<TARGET_FILE:le_audio_unicast_gateway>
+        $<TARGET_FILE:le_audio_unicast_headset>
+        $<TARGET_FILE:lc3_test>
+        ${CMAKE_BINARY_DIR}/release/
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+        ${CMAKE_SOURCE_DIR}/README.md
+        ${CMAKE_BINARY_DIR}/release/
+    COMMAND cd ${CMAKE_BINARY_DIR}/release && ${CMAKE_COMMAND} -E tar czf ../${RELEASE_NAME}.tar.gz *
+    COMMAND ${CMAKE_COMMAND} -E echo "Release package created: ${RELEASE_NAME}.tar.gz"
+    DEPENDS le_audio_broadcast_source le_audio_broadcast_sink le_audio_broadcast_assistant 
+            le_audio_unicast_gateway le_audio_unicast_headset lc3_test
+    COMMENT "Creating release package with all LE Audio executables"
+)
