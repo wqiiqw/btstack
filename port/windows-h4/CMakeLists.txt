@@ -201,3 +201,56 @@ foreach(EXAMPLE ${EXAMPLES})
 	add_executable(${EXAMPLE} ${SOURCES_EXAMPLE})
 	target_link_libraries(${EXAMPLE} btstack)
 endforeach(EXAMPLE)
+
+# Release build configuration
+# For single-config generators (Make, Ninja)
+if(NOT CMAKE_CONFIGURATION_TYPES)
+	if(NOT CMAKE_BUILD_TYPE)
+		set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build" FORCE)
+	endif()
+	set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release")
+	
+	if(CMAKE_BUILD_TYPE STREQUAL "Release")
+		set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -DNDEBUG")
+		set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
+	endif()
+else()
+	# For multi-config generators (Visual Studio, Xcode)
+	set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -DNDEBUG")
+	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
+endif()
+
+# Create zip target for release builds
+find_program(ZIP_EXECUTABLE NAMES 7z zip)
+if(ZIP_EXECUTABLE)
+	if(CMAKE_GENERATOR MATCHES "Visual Studio")
+		# For Visual Studio, use generator expressions to handle multi-config
+		add_custom_target(zip_release
+			COMMAND ${CMAKE_COMMAND} -E echo "Creating release zip file..."
+			COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/$<CONFIG>"
+			COMMAND ${CMAKE_COMMAND} -E chdir "${CMAKE_BINARY_DIR}/$<CONFIG>" ${ZIP_EXECUTABLE} a ../btstack-windows-h4-release.zip *.exe
+			DEPENDS ${EXAMPLES}
+			COMMENT "Packaging all executables into zip file from ${CMAKE_BINARY_DIR}/$<CONFIG>"
+		)
+	else()
+		# For single-config generators (Make, Ninja)
+		set(EXE_DIR "${CMAKE_BINARY_DIR}")
+		add_custom_target(zip_release
+			COMMAND ${CMAKE_COMMAND} -E echo "Creating release zip file..."
+			COMMAND ${CMAKE_COMMAND} -E chdir "${EXE_DIR}" ${ZIP_EXECUTABLE} a ../btstack-windows-h4-release.zip *.exe
+			DEPENDS ${EXAMPLES}
+			COMMENT "Packaging all executables into zip file from ${EXE_DIR}"
+		)
+	endif()
+else()
+	message(WARNING "zip or 7z not found. Cannot create zip target.")
+endif()
+
+# Clean all target - removes entire build directory
+add_custom_target(cleanall
+	COMMAND ${CMAKE_COMMAND} -E echo "Removing entire build directory..."
+	COMMAND ${CMAKE_COMMAND} -E remove_directory "${CMAKE_BINARY_DIR}"
+	COMMAND ${CMAKE_COMMAND} -E echo "Build directory removed. Run cmake to reconfigure."
+	WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+	COMMENT "Clean all build files and directories"
+)

@@ -355,6 +355,9 @@ static int setup_demo(void){
     //   - This allows A2DP Source, e.g. smartphone, to become master when we re-connect to it.
     gap_set_allow_role_switch(true);
 
+    // - Force legacy pairing to show PIN prompt on phone
+    gap_ssp_set_enable(0);
+
 
     // Register for HCI events
     hci_event_callback_registration.callback = &hci_packet_handler;

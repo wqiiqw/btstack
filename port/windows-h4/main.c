@@ -71,12 +71,13 @@
 
 int btstack_main(int argc, const char * argv[]);
 static void local_version_information_handler(uint8_t * packet);
+static void show_usage(const char* program_name);
 
 static hci_transport_config_uart_t config = {
         HCI_TRANSPORT_CONFIG_UART,
-        115200,
+        500000,  // default baudrate
         0,  // main baudrate
-        1,  // flow control
+        0,  // flow control (default off)
         NULL,
 };
 
@@ -224,6 +225,49 @@ static void local_version_information_handler(uint8_t * packet){
     }
 }
 
+static char com_port_buffer[20];
+
+static const char* format_com_port(const char* input) {
+    // Handle different COM port formats
+    if (strncmp(input, "COM", 3) == 0) {
+        int port_num = atoi(input + 3);
+        if (port_num <= 0) {
+            return input; // Invalid, return as-is
+        }
+        if (port_num < 10) {
+            // For COM1-COM9, use simple format
+            snprintf(com_port_buffer, sizeof(com_port_buffer), "COM%d", port_num);
+        } else {
+            // For COM10+, use extended format
+            snprintf(com_port_buffer, sizeof(com_port_buffer), "\\\\.\\COM%d", port_num);
+        }
+        return com_port_buffer;
+    } else if (strstr(input, "\\\\.\\COM") != NULL) {
+        // Already in extended format, return as-is
+        return input;
+    } else {
+        // Not a COM port format, return as-is
+        return input;
+    }
+}
+
+static void show_usage(const char* program_name) {
+    printf("Usage: %s [options]\n", program_name);
+    printf("Options:\n");
+    printf("  -u <device>     COM port (COM6, COM15, or \\\\.\\COM15 format)\n");
+    printf("  -b <baudrate>   UART baudrate (default: 500000)\n");
+    printf("  -f <0|1>        Flow control: 0=disabled, 1=enabled (default: 0)\n");
+    printf("  -d <path>       HCI dump file path (default: hci_dump.pklg)\n");
+    printf("  -h              Show this help message\n");
+    printf("\nCOM Port Format:\n");
+    printf("  COM1-COM9:      Use 'COM6' format\n");
+    printf("  COM10+:         Use 'COM15' or '\\\\.\\COM15' format\n");
+    printf("\nExamples:\n");
+    printf("  %s -u COM6 -b 115200\n", program_name);
+    printf("  %s -u COM15 -f 0\n", program_name);
+    printf("  %s -u \\\\.\\COM3 -d my_dump.pklg\n", program_name);
+}
+
 int main(int argc, const char * argv[]){
     printf("BTstack on windows booting up\n");
 
@@ -231,23 +275,58 @@ int main(int argc, const char * argv[]){
     btstack_memory_init();
     btstack_run_loop_init(btstack_run_loop_windows_get_instance());
 
-    // log into file using HCI_DUMP_PACKETLOGGER format
+    // pre-select serial device
+    config.device_name = "\\\\.\\COM15"; // Default COM port
+    
+    // default HCI dump path
     const char * pklg_path = "hci_dump.pklg";
+    const char * custom_pklg_path = NULL;
+
+    // parse command line arguments
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-u") == 0 && i + 1 < argc) {
+            config.device_name = format_com_port(argv[++i]);
+        } else if (strcmp(argv[i], "-b") == 0 && i + 1 < argc) {
+            config.baudrate_init = atoi(argv[++i]);
+            if (config.baudrate_init <= 0) {
+                printf("Error: Invalid baudrate specified\n");
+                show_usage(argv[0]);
+                return 1;
+            }
+        } else if (strcmp(argv[i], "-f") == 0 && i + 1 < argc) {
+            int flow_control = atoi(argv[++i]);
+            if (flow_control != 0 && flow_control != 1) {
+                printf("Error: Flow control must be 0 or 1\n");
+                show_usage(argv[0]);
+                return 1;
+            }
+            config.flowcontrol = flow_control;
+        } else if (strcmp(argv[i], "-d") == 0 && i + 1 < argc) {
+            custom_pklg_path = argv[++i];
+        } else if (strcmp(argv[i], "-h") == 0) {
+            show_usage(argv[0]);
+            return 0;
+        } else {
+            printf("Error: Unknown option '%s'\n", argv[i]);
+            show_usage(argv[0]);
+            return 1;
+        }
+    }
+    
+    printf("H4 device: %s\n", config.device_name);
+    printf("Baudrate: %u\n", config.baudrate_init);
+    printf("Flow control: %s\n", config.flowcontrol ? "enabled" : "disabled");
+
+    // use custom dump path if provided
+    if (custom_pklg_path) {
+        pklg_path = custom_pklg_path;
+    }
+    
+    // log into file using HCI_DUMP_PACKETLOGGER format
     hci_dump_windows_fs_open(pklg_path, HCI_DUMP_PACKETLOGGER);
     const hci_dump_t * hci_dump_impl = hci_dump_windows_fs_get_instance();
     hci_dump_init(hci_dump_impl);
     printf("Packet Log: %s\n", pklg_path);
-
-    // pick serial port
-    config.device_name = "\\\\.\\COM7";
-
-    // accept path from command line
-    if (argc >= 3 && strcmp(argv[1], "-u") == 0){
-        config.device_name = argv[2];
-        argc -= 2;
-        memmove((void *) &argv[1], &argv[3], (argc-1) * sizeof(char *));
-    }
-    printf("H4 device: %s\n", config.device_name);
 
     // init HCI
     const btstack_uart_block_t * uart_driver = btstack_uart_block_windows_instance();
@@ -267,8 +346,8 @@ int main(int argc, const char * argv[]){
     btstack_stdin_windows_init();
     btstack_stdin_window_register_ctrl_c_callback(&trigger_shutdown);
 
-    // setup app
-    btstack_main(argc, argv);
+    // setup app (no arguments passed as they're handled here)
+    btstack_main(0, NULL);
 
     // go
     btstack_run_loop_execute();
